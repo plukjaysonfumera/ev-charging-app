@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
           COUNT(DISTINCT r.id) AS review_count,
           COUNT(DISTINCT p.id) AS port_count,
           BOOL_OR(p.status = 'AVAILABLE') AS has_available,
-          ARRAY_AGG(DISTINCT p."connectorType") FILTER (WHERE p."connectorType" IS NOT NULL) AS connector_types
+          ARRAY_AGG(DISTINCT p."connector_type") FILTER (WHERE p."connector_type" IS NOT NULL) AS connector_types
         FROM stations s
         LEFT JOIN reviews r ON r.station_id = s.id
         LEFT JOIN ports p ON p.station_id = s.id
@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
           COUNT(DISTINCT r.id) AS review_count,
           COUNT(DISTINCT p.id) AS port_count,
           BOOL_OR(p.status = 'AVAILABLE') AS has_available,
-          ARRAY_AGG(DISTINCT p."connectorType") FILTER (WHERE p."connectorType" IS NOT NULL) AS connector_types
+          ARRAY_AGG(DISTINCT p."connector_type") FILTER (WHERE p."connector_type" IS NOT NULL) AS connector_types
         FROM stations s
         LEFT JOIN reviews r ON r.station_id = s.id
         LEFT JOIN ports p ON p.station_id = s.id
