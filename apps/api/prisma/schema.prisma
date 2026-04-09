@@ -1,0 +1,207 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis]
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  STATION_OWNER
+  ADMIN
+}
+
+enum ConnectorType {
+  TYPE1     // J1772 (SAE)
+  TYPE2     // Mennekes (IEC 62196)
+  CCS1      // Combined Charging System Type 1
+  CCS2      // Combined Charging System Type 2
+  CHADEMO
+  GBAC      // GB/T AC
+  GBACD     // GB/T DC
+  TESLA_S   // Tesla Supercharger
+  NACS      // North American Charging Standard
+}
+
+enum ChargingSpeed {
+  LEVEL1    // AC ~1.4 kW
+  LEVEL2    // AC 3.3–22 kW
+  DCFC      // DC Fast Charge 50–350 kW
+}
+
+enum StationStatus {
+  ACTIVE
+  INACTIVE
+  COMING_SOON
+  UNDER_MAINTENANCE
+}
+
+enum PortStatus {
+  AVAILABLE
+  OCCUPIED
+  FAULTED
+  OFFLINE
+}
+
+enum SessionStatus {
+  INITIATED
+  CHARGING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  firebaseUid     String    @unique @map("firebase_uid")
+  email           String    @unique
+  displayName     String    @map("display_name")
+  photoUrl        String?   @map("photo_url")
+  phoneNumber     String?   @map("phone_number")
+  role            UserRole  @default(USER)
+  preferredLocale String    @default("en") @map("preferred_locale")
+  expoPushToken   String?   @map("expo_push_token")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  vehicles        Vehicle[]
+  reviews         Review[]
+  sessions        ChargingSession[]
+  ownedStations   Station[]         @relation("StationOwner")
+
+  @@map("users")
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  make         String
+  model        String
+  year         Int
+  batteryKwh   Float    @map("battery_kwh")
+  rangKm       Float    @map("range_km")
+  connectors   ConnectorType[]
+  licensePlate String?  @map("license_plate")
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions     ChargingSession[]
+
+  @@map("vehicles")
+}
+
+model Station {
+  id            String        @id @default(cuid())
+  ownerId       String?       @map("owner_id")
+  name          String
+  description   String?
+  address       String
+  city          String
+  province      String
+  postalCode    String?       @map("postal_code")
+  // PostGIS geography point — longitude, latitude
+  location      Unsupported("geography(Point, 4326)")
+  status        StationStatus @default(ACTIVE)
+  amenities     String[]      // e.g. ["wifi", "restroom", "food"]
+  openingHours  Json?         @map("opening_hours")  // { mon: "08:00-22:00", ... }
+  photos        String[]
+  phone         String?
+  website       String?
+  networkName   String?       @map("network_name")   // e.g. "EVRO", "ChargePoint"
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  owner         User?         @relation("StationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  ports         Port[]
+  reviews       Review[]
+  sessions      ChargingSession[]
+
+  @@index([status])
+  @@map("stations")
+}
+
+model Port {
+  id            String        @id @default(cuid())
+  stationId     String        @map("station_id")
+  portNumber    String        @map("port_number")
+  connectorType ConnectorType @map("connector_type")
+  chargingSpeed ChargingSpeed @map("charging_speed")
+  maxKw         Float         @map("max_kw")
+  pricePerKwh   Decimal       @map("price_per_kwh") @db.Decimal(10, 4)
+  currency      String        @default("PHP")
+  status        PortStatus    @default(AVAILABLE)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  station       Station           @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  sessions      ChargingSession[]
+
+  @@map("ports")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  stationId   String   @map("station_id")
+  rating      Int      // 1–5
+  comment     String?
+  photos      String[]
+  helpfulCount Int     @default(0) @map("helpful_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  station     Station @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stationId])
+  @@index([stationId])
+  @@map("reviews")
+}
+
+model ChargingSession {
+  id              String        @id @default(cuid())
+  userId          String        @map("user_id")
+  stationId       String        @map("station_id")
+  portId          String        @map("port_id")
+  vehicleId       String?       @map("vehicle_id")
+  status          SessionStatus @default(INITIATED)
+  startedAt       DateTime?     @map("started_at")
+  endedAt         DateTime?     @map("ended_at")
+  energyKwh       Float?        @map("energy_kwh")
+  durationMinutes Int?          @map("duration_minutes")
+  totalAmount     Decimal?      @map("total_amount") @db.Decimal(10, 2)
+  currency        String        @default("PHP")
+  paymentStatus   PaymentStatus @default(PENDING) @map("payment_status")
+  paymongoId      String?       @map("paymongo_id")
+  receiptUrl      String?       @map("receipt_url")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  station         Station  @relation(fields: [stationId], references: [id])
+  port            Port     @relation(fields: [portId], references: [id])
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([stationId])
+  @@index([status])
+  @@map("charging_sessions")
+}

@@ -1,0 +1,320 @@
+import { API_URL } from '../lib/config';
+import { useEffect, useState } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TextInput,
+  TouchableOpacity, ActivityIndicator, RefreshControl,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../theme';
+
+
+
+const CONNECTOR_FILTERS = ['All', 'CCS2', 'TYPE2', 'CHADEMO', 'NACS'];
+const AVAILABILITY_FILTERS = ['All', 'Available'];
+
+interface Station {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  province: string;
+  network_name?: string;
+  average_rating: number;
+  review_count: number;
+  port_count: number;
+  has_available: boolean;
+  connector_types: string[];
+  latitude: number;
+  longitude: number;
+}
+
+export default function StationsScreen() {
+  const t = useTheme();
+  const navigation = useNavigation<any>();
+  const [stations, setStations] = useState<Station[]>([]);
+  const [filtered, setFiltered] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [connectorFilter, setConnectorFilter] = useState('All');
+  const [availabilityFilter, setAvailabilityFilter] = useState('All');
+
+  useEffect(() => { loadStations(); }, []);
+  useEffect(() => { applyFilters(); }, [search, connectorFilter, availabilityFilter, stations]);
+
+  async function loadStations(isRefresh = false) {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/stations`);
+      const json = await res.json();
+      setStations(json.data ?? []);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  function applyFilters() {
+    let result = [...stations];
+
+    // Text search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.city.toLowerCase().includes(q) ||
+        s.address.toLowerCase().includes(q)
+      );
+    }
+
+    // Connector filter
+    if (connectorFilter !== 'All') {
+      result = result.filter(s =>
+        Array.isArray(s.connector_types) &&
+        s.connector_types.includes(connectorFilter)
+      );
+    }
+
+    // Availability filter
+    if (availabilityFilter === 'Available') {
+      result = result.filter(s => s.has_available);
+    }
+
+    setFiltered(result);
+  }
+
+  const activeFilterCount =
+    (connectorFilter !== 'All' ? 1 : 0) +
+    (availabilityFilter !== 'All' ? 1 : 0);
+
+  function clearFilters() {
+    setConnectorFilter('All');
+    setAvailabilityFilter('All');
+  }
+
+  function renderStars(rating: number) {
+    const stars = Math.round(rating);
+    return [1, 2, 3, 4, 5].map(i => (
+      <Ionicons key={i} name={i <= stars ? 'star' : 'star-outline'} size={12} color={t.star} />
+    ));
+  }
+
+  function renderItem({ item }: { item: Station }) {
+    return (
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: t.surfaceElevated }]}
+        onPress={() => navigation.navigate('StationDetail', { stationId: item.id })}
+        activeOpacity={0.8}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={[styles.stationName, { color: t.text }]} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.cardBadges}>
+            {item.has_available && (
+              <View style={[styles.availBadge, { backgroundColor: '#D1FAE5' }]}>
+                <View style={styles.availDot} />
+                <Text style={[styles.availText, { color: '#065F46' }]}>Available</Text>
+              </View>
+            )}
+            {item.network_name && (
+              <View style={[styles.networkBadge, { backgroundColor: t.badge }]}>
+                <Text style={[styles.networkText, { color: t.badgeText }]}>{item.network_name}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <Text style={[styles.address, { color: t.textTertiary }]} numberOfLines={1}>
+          <Ionicons name="location-outline" size={12} color={t.textTertiary} /> {item.address}, {item.city}
+        </Text>
+
+        {/* Connector type pills */}
+        {Array.isArray(item.connector_types) && item.connector_types.length > 0 && (
+          <View style={styles.connectorRow}>
+            {item.connector_types.map(ct => (
+              <View key={ct} style={[styles.connectorPill, { backgroundColor: t.surface, borderColor: t.border }]}>
+                <Text style={[styles.connectorPillText, { color: t.textSecondary }]}>{ct}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.cardFooter}>
+          <View style={styles.stars}>{renderStars(item.average_rating)}</View>
+          <Text style={[styles.reviewCount, { color: t.textTertiary }]}>({item.review_count})</Text>
+          <View style={[styles.dot, { backgroundColor: t.border }]} />
+          <Ionicons name="flash-outline" size={13} color={t.green} />
+          <Text style={[styles.portCount, { color: t.green }]}>{item.port_count} port{item.port_count !== 1 ? 's' : ''}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: t.surface }]}>
+        <ActivityIndicator size="large" color={t.green} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: t.surface }]}>
+      {/* Search */}
+      <View style={[styles.searchContainer, { backgroundColor: t.surfaceElevated, borderColor: t.border }]}>
+        <Ionicons name="search" size={18} color={t.textTertiary} style={styles.searchIcon} />
+        <TextInput
+          style={[styles.searchInput, { color: t.text }]}
+          placeholder="Search stations, cities..."
+          placeholderTextColor={t.placeholder}
+          value={search}
+          onChangeText={setSearch}
+          clearButtonMode="while-editing"
+        />
+      </View>
+
+      {/* Connector Filter */}
+      <View style={styles.filterSection}>
+        <Text style={[styles.filterLabel, { color: t.textTertiary }]}>Connector</Text>
+        <FlatList
+          horizontal
+          data={CONNECTOR_FILTERS}
+          keyExtractor={i => i}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item }) => {
+            const active = connectorFilter === item;
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: t.surfaceElevated, borderColor: t.border },
+                  active && { backgroundColor: t.green, borderColor: t.green },
+                ]}
+                onPress={() => setConnectorFilter(item)}
+              >
+                <Text style={[styles.filterText, { color: t.textSecondary }, active && { color: '#fff', fontWeight: '600' }]}>
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+
+      {/* Availability Filter */}
+      <View style={styles.filterSection}>
+        <Text style={[styles.filterLabel, { color: t.textTertiary }]}>Availability</Text>
+        <View style={styles.availRow}>
+          {AVAILABILITY_FILTERS.map(item => {
+            const active = availabilityFilter === item;
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: t.surfaceElevated, borderColor: t.border },
+                  active && { backgroundColor: t.green, borderColor: t.green },
+                ]}
+                onPress={() => setAvailabilityFilter(item)}
+              >
+                {item === 'Available' && (
+                  <View style={[styles.availIndicator, { backgroundColor: active ? '#fff' : '#22C55E' }]} />
+                )}
+                <Text style={[styles.filterText, { color: t.textSecondary }, active && { color: '#fff', fontWeight: '600' }]}>
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Results row */}
+      <View style={styles.resultsRow}>
+        <Text style={[styles.resultsCount, { color: t.textTertiary }]}>
+          {filtered.length} station{filtered.length !== 1 ? 's' : ''}
+        </Text>
+        {activeFilterCount > 0 && (
+          <TouchableOpacity onPress={clearFilters} style={[styles.clearBtn, { backgroundColor: t.green + '18' }]}>
+            <Text style={[styles.clearBtnText, { color: t.green }]}>Clear filters ({activeFilterCount})</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* List */}
+      <FlatList
+        data={filtered}
+        keyExtractor={s => s.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadStations(true)} tintColor={t.green} />
+        }
+        ListEmptyComponent={
+          <View style={styles.centered}>
+            <Ionicons name="flash-off-outline" size={48} color={t.border} />
+            <Text style={[styles.emptyText, { color: t.textTertiary }]}>No stations found</Text>
+            {activeFilterCount > 0 && (
+              <TouchableOpacity onPress={clearFilters} style={{ marginTop: 12 }}>
+                <Text style={[styles.clearBtnText, { color: t.green }]}>Clear filters</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        }
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  searchContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    margin: 12, marginBottom: 8, borderRadius: 10,
+    paddingHorizontal: 12, borderWidth: 1,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  filterSection: { paddingHorizontal: 12, marginBottom: 6 },
+  filterLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
+  filterRow: { gap: 8 },
+  availRow: { flexDirection: 'row', gap: 8 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
+  },
+  filterText: { fontSize: 13 },
+  availIndicator: { width: 7, height: 7, borderRadius: 4 },
+  resultsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 },
+  resultsCount: { fontSize: 12 },
+  clearBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  clearBtnText: { fontSize: 12, fontWeight: '600' },
+  list: { padding: 12, paddingTop: 4 },
+  card: {
+    borderRadius: 12, padding: 16, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+  stationName: { flex: 1, fontSize: 15, fontWeight: '700', marginRight: 8 },
+  cardBadges: { flexDirection: 'row', gap: 6, flexShrink: 0 },
+  availBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  availDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#16A34A' },
+  availText: { fontSize: 10, fontWeight: '700' },
+  networkBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  networkText: { fontSize: 11, fontWeight: '600' },
+  address: { fontSize: 13, marginBottom: 8 },
+  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  connectorPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  connectorPillText: { fontSize: 11, fontWeight: '600' },
+  cardFooter: { flexDirection: 'row', alignItems: 'center' },
+  stars: { flexDirection: 'row' },
+  reviewCount: { fontSize: 12, marginLeft: 4 },
+  dot: { width: 3, height: 3, borderRadius: 2, marginHorizontal: 8 },
+  portCount: { fontSize: 13, marginLeft: 2, fontWeight: '600' },
+  emptyText: { fontSize: 15, marginTop: 12 },
+});
