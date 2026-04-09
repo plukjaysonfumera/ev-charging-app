@@ -6,7 +6,7 @@ const ENV = {
     API_URL: 'http://192.168.1.151:3000',
   },
   prod: {
-    API_URL: 'https://your-api.up.railway.app', // ← replace after Railway deploy
+    API_URL: 'https://api-production-d60b.up.railway.app',
   },
 };
 
