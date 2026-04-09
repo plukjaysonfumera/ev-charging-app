@@ -194,8 +194,8 @@ router.get('/stations/:id/stats', async (req: Request, res: Response) => {
     });
 
     const totalSessions = sessions.length;
-    const totalRevenue = sessions.reduce((sum, s) => sum + parseFloat(String(s.totalAmount ?? '0')), 0);
-    const totalDuration = sessions.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
+    const totalRevenue = sessions.reduce((sum: number, s) => sum + parseFloat(String(s.totalAmount ?? '0')), 0);
+    const totalDuration = sessions.reduce((sum: number, s) => sum + (s.durationMinutes ?? 0), 0);
     const avgDuration = totalSessions > 0 ? totalDuration / totalSessions : 0;
 
     return res.json({

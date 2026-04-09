@@ -19,8 +19,8 @@ export async function sendPushNotification(message: PushMessage) {
       },
       body: JSON.stringify({ ...message, sound: 'default' }),
     });
-    const data = await res.json();
-    if (data.data?.status === 'error') {
+    const data = await res.json() as any;
+    if (data?.data?.status === 'error') {
       console.error('Push error:', data.data.message);
     }
     return data;
