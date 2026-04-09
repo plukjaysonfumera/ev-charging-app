@@ -44,7 +44,7 @@ router.post('/stations', async (req: Request, res: Response) => {
       });
     }
 
-    const station = await prisma.station.create({
+    const station = await (prisma.station as any).create({
       data: {
         ownerId: user.id,
         name,

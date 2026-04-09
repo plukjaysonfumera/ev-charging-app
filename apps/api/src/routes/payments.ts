@@ -48,7 +48,7 @@ router.post('/create', async (req, res) => {
       headers: { 'Content-Type': 'application/json', Authorization: authHeader },
       body: JSON.stringify(pmBody),
     });
-    const pmData = await pmRes.json();
+    const pmData = await pmRes.json() as any;
     if (!pmRes.ok) {
       console.error('PaymentMethod error:', pmData);
       return res.status(400).json({ error: pmData.errors?.[0]?.detail ?? 'Failed to create payment method' });
@@ -72,7 +72,7 @@ router.post('/create', async (req, res) => {
         },
       }),
     });
-    const piData = await piRes.json();
+    const piData = await piRes.json() as any;
     if (!piRes.ok) {
       console.error('PaymentIntent error:', piData);
       return res.status(400).json({ error: piData.errors?.[0]?.detail ?? 'Failed to create payment intent' });
@@ -94,7 +94,7 @@ router.post('/create', async (req, res) => {
         },
       }),
     });
-    const attachData = await attachRes.json();
+    const attachData = await attachRes.json() as any;
     if (!attachRes.ok) {
       console.error('Attach error:', attachData);
       return res.status(400).json({ error: attachData.errors?.[0]?.detail ?? 'Failed to attach payment method' });
@@ -135,7 +135,7 @@ router.post('/confirm', async (req, res) => {
     const piRes = await fetch(`${PAYMONGO_BASE}/payment_intents/${paymentIntentId}`, {
       headers: { Authorization: authHeader },
     });
-    const piData = await piRes.json();
+    const piData = await piRes.json() as any;
     const status = piData.data?.attributes?.status;
 
     if (status === 'succeeded') {
