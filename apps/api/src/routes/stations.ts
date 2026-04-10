@@ -100,7 +100,17 @@ router.get('/:id', async (req, res) => {
     if (!station) return res.status(404).json({ error: 'Station not found' });
 
     const ports = await prisma.port.findMany({ where: { stationId: id } });
-    res.json({ data: { ...serializeStation(station), ports } });
+    const serializedPorts = ports.map(p => ({
+      id: p.id,
+      port_number: p.portNumber,
+      connector_type: p.connectorType,
+      charging_speed: p.chargingSpeed,
+      max_kw: p.maxKw,
+      price_per_kwh: p.pricePerKwh,
+      currency: p.currency,
+      status: p.status,
+    }));
+    res.json({ data: { ...serializeStation(station), ports: serializedPorts } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch station' });
