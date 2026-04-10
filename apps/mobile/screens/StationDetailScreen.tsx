@@ -116,11 +116,11 @@ export default function StationDetailScreen({ route, navigation }: any) {
         </Text>
       </View>
 
-      {station.amenities.length > 0 && (
+      {(station.amenities ?? []).length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.text }]}>Amenities</Text>
           <View style={styles.amenitiesRow}>
-            {station.amenities.map(a => (
+            {(station.amenities ?? []).map(a => (
               <View key={a} style={[styles.amenityChip, { backgroundColor: t.surface }]}>
                 <Text style={[styles.amenityText, { color: t.textSecondary }]}>{a}</Text>
               </View>
@@ -130,11 +130,11 @@ export default function StationDetailScreen({ route, navigation }: any) {
       )}
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: t.text }]}>Charging Ports ({station.ports.length})</Text>
-        {station.ports.length === 0 ? (
+        <Text style={[styles.sectionTitle, { color: t.text }]}>Charging Ports ({(station.ports ?? []).length})</Text>
+        {(station.ports ?? []).length === 0 ? (
           <Text style={[styles.noData, { color: t.textTertiary }]}>No ports listed yet.</Text>
         ) : (
-          station.ports.map(port => (
+          (station.ports ?? []).map(port => (
             <View key={port.id} style={[styles.portCard, { borderColor: t.border }]}>
               <View style={styles.portHeader}>
                 <Text style={[styles.portNumber, { color: t.text }]}>Port {port.port_number}</Text>
