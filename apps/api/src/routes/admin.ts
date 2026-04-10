@@ -44,27 +44,25 @@ router.post('/stations', async (req: Request, res: Response) => {
       });
     }
 
-    const station = await (prisma.station as any).create({
-      data: {
-        ownerId: user.id,
-        name,
-        address,
-        city,
-        province,
-        networkName: networkName || null,
-        location: undefined as any,
-      },
-    });
-
-    // Set PostGIS location
+    const id = `c${Math.random().toString(36).slice(2, 11)}${Date.now().toString(36)}`;
     await prisma.$executeRaw`
-      UPDATE stations
-      SET location = ST_MakePoint(${longitude}::float, ${latitude}::float)::geography
-      WHERE id = ${station.id}
+      INSERT INTO stations (id, owner_id, name, address, city, province, network_name, location, created_at, updated_at)
+      VALUES (
+        ${id},
+        ${user.id},
+        ${name},
+        ${address},
+        ${city},
+        ${province},
+        ${networkName || null},
+        ST_MakePoint(${parseFloat(longitude)}::float, ${parseFloat(latitude)}::float)::geography,
+        NOW(),
+        NOW()
+      )
     `;
 
-    const updated = await prisma.station.findUnique({ where: { id: station.id } });
-    return res.status(201).json(updated);
+    const station = await prisma.station.findUnique({ where: { id } });
+    return res.status(201).json(station);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to create station' });
