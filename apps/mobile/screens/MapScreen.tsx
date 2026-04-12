@@ -12,8 +12,8 @@ import { useTheme } from '../theme';
 const MANILA_REGION: Region = {
   latitude: 14.5995,
   longitude: 120.9842,
-  latitudeDelta: 0.15,
-  longitudeDelta: 0.15,
+  latitudeDelta: 0.5,
+  longitudeDelta: 0.5,
 };
 
 interface Station {
@@ -58,11 +58,11 @@ export default function MapScreen() {
   }
 
   function zoomToLocation(coords: { latitude: number; longitude: number }) {
-    mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.08, longitudeDelta: 0.08 }, 800);
+    mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.3, longitudeDelta: 0.3 }, 800);
   }
 
   function loadNearbyStations(coords: { latitude: number; longitude: number }) {
-    fetch(`${API_URL}/api/v1/stations?lat=${coords.latitude}&lng=${coords.longitude}&radius=20`)
+    fetch(`${API_URL}/api/v1/stations?lat=${coords.latitude}&lng=${coords.longitude}&radius=50`)
       .then(res => res.json())
       .then(json => setStations(json.data ?? []))
       .catch(() => setError('Could not load stations.'))
@@ -100,9 +100,13 @@ export default function MapScreen() {
             coordinate={{ latitude: Number(station.latitude), longitude: Number(station.longitude) }}
             title={station.name}
             description={`${station.address} · Tap for details`}
-            pinColor={t.green}
             onCalloutPress={() => navigation.navigate('StationDetail', { stationId: station.id })}
-          />
+          >
+            <View style={[styles.markerContainer, { backgroundColor: t.accent }]}>
+              <Ionicons name="flash" size={14} color="#fff" />
+            </View>
+            <View style={[styles.markerTail, { borderTopColor: t.accent }]} />
+          </Marker>
         ))}
       </MapView>
 
@@ -144,4 +148,15 @@ const styles = StyleSheet.create({
     padding: 12, borderRadius: 8,
   },
   errorText: { color: '#fff', textAlign: 'center' },
+  markerContainer: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 3, elevation: 5,
+  },
+  markerTail: {
+    width: 0, height: 0, alignSelf: 'center',
+    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+  },
 });
