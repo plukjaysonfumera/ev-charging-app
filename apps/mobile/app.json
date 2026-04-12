@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "PHEV PH",
-    "slug": "phev-ph",
+    "slug": "ev-charging-ph",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
