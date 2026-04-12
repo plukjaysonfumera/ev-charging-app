@@ -1,27 +1,29 @@
 {
   "expo": {
-    "name": "EV Charging PH",
-    "slug": "ev-charging-ph",
+    "name": "PHEV PH",
+    "slug": "phev-ph",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1B4332"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.phevph.app",
       "config": {
         "googleMapsApiKey": "AIzaSyD1h_YgQ9azXbxSZamLq8yGMB5e7RZt50g"
       }
     },
     "android": {
+      "package": "com.phevph.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1B4332"
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
