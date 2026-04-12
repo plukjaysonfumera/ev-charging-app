@@ -20,13 +20,33 @@ const CONNECTOR_OPTIONS = [
 ];
 
 const POPULAR_EVS = [
+  // BYD
   { make: 'BYD', model: 'Atto 3', year: 2024, batteryKwh: 60.5, connectors: ['CCS2'] },
   { make: 'BYD', model: 'Seal', year: 2024, batteryKwh: 82.5, connectors: ['CCS2'] },
-  { make: 'Tesla', model: 'Model 3', year: 2024, batteryKwh: 75, connectors: ['NACS'] },
-  { make: 'Nissan', model: 'Leaf', year: 2023, batteryKwh: 40, connectors: ['TYPE1', 'CHADEMO'] },
-  { make: 'MG', model: 'ZS EV', year: 2024, batteryKwh: 51, connectors: ['CCS2'] },
+  { make: 'BYD', model: 'Han', year: 2024, batteryKwh: 85.4, connectors: ['CCS2'] },
+  { make: 'BYD', model: 'Dolphin', year: 2024, batteryKwh: 44.9, connectors: ['CCS2'] },
+  { make: 'BYD', model: 'Tang', year: 2024, batteryKwh: 108.8, connectors: ['CCS2'] },
+  // Hyundai / Kia
   { make: 'Hyundai', model: 'Ioniq 5', year: 2024, batteryKwh: 77.4, connectors: ['CCS2'] },
+  { make: 'Hyundai', model: 'Ioniq 6', year: 2024, batteryKwh: 77.4, connectors: ['CCS2'] },
   { make: 'Kia', model: 'EV6', year: 2024, batteryKwh: 77.4, connectors: ['CCS2'] },
+  { make: 'Kia', model: 'EV9', year: 2024, batteryKwh: 99.8, connectors: ['CCS2'] },
+  // MG / SAIC
+  { make: 'MG', model: 'ZS EV', year: 2024, batteryKwh: 51, connectors: ['CCS2'] },
+  { make: 'MG', model: '4', year: 2024, batteryKwh: 64, connectors: ['CCS2'] },
+  // Geely / Ora
+  { make: 'Geely', model: 'Geometry C', year: 2024, batteryKwh: 70, connectors: ['CCS2'] },
+  { make: 'Ora', model: 'Good Cat', year: 2024, batteryKwh: 63, connectors: ['CCS2'] },
+  // Tesla
+  { make: 'Tesla', model: 'Model 3', year: 2024, batteryKwh: 75, connectors: ['NACS'] },
+  { make: 'Tesla', model: 'Model Y', year: 2024, batteryKwh: 75, connectors: ['NACS'] },
+  // Nissan
+  { make: 'Nissan', model: 'Leaf', year: 2023, batteryKwh: 40, connectors: ['TYPE1', 'CHADEMO'] },
+  { make: 'Nissan', model: 'Ariya', year: 2024, batteryKwh: 87, connectors: ['CCS2'] },
+  // Others
+  { make: 'Volvo', model: 'XC40 Recharge', year: 2024, batteryKwh: 82, connectors: ['CCS2'] },
+  { make: 'BMW', model: 'iX', year: 2024, batteryKwh: 111.5, connectors: ['CCS2'] },
+  { make: 'Audi', model: 'e-tron', year: 2024, batteryKwh: 95, connectors: ['CCS2'] },
 ];
 
 export default function AddVehicleScreen({ navigation }: any) {

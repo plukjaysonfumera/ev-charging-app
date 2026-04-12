@@ -78,15 +78,21 @@ export default function ProfileScreen() {
     <ScrollView style={[styles.container, { backgroundColor: t.surface }]} contentContainerStyle={styles.content}>
       {/* Avatar + Info */}
       <View style={[styles.header, { backgroundColor: t.surfaceElevated }]}>
-        <View style={[styles.avatar, { backgroundColor: t.green }]}>
-          <Ionicons name="person" size={40} color="#fff" />
+        <View style={[styles.avatar, { backgroundColor: t.accent }]}>
+          <Text style={styles.avatarInitials}>
+            {(user?.displayName ?? 'E').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+          </Text>
         </View>
         <View style={styles.headerInfo}>
           <Text style={[styles.name, { color: t.text }]}>{user?.displayName ?? 'EV Driver'}</Text>
           <Text style={[styles.email, { color: t.textSecondary }]}>{user?.email}</Text>
+          <View style={[styles.memberBadge, { backgroundColor: t.badge }]}>
+            <Ionicons name="flash" size={10} color={t.accent} />
+            <Text style={[styles.memberText, { color: t.accent }]}>PHEV PH Member</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile')}>
-          <Ionicons name="create-outline" size={20} color={t.green} />
+          <Ionicons name="create-outline" size={20} color={t.accent} />
         </TouchableOpacity>
       </View>
 
@@ -154,6 +160,12 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* App Info */}
+      <View style={[styles.appInfo, { borderColor: t.border }]}>
+        <Text style={[styles.appInfoText, { color: t.textTertiary }]}>PHEV PH · Version 1.0.0</Text>
+        <Text style={[styles.appInfoText, { color: t.textTertiary }]}>Powering EV drivers across the Philippines 🇵🇭</Text>
+      </View>
+
       {/* Account Actions */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: t.text }]}>Account</Text>
@@ -186,6 +198,11 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 16, marginBottom: 16 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  avatarInitials: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  memberBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 6 },
+  memberText: { fontSize: 10, fontWeight: '700' },
+  appInfo: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 16, alignItems: 'center', gap: 4 },
+  appInfoText: { fontSize: 12, textAlign: 'center' },
   headerInfo: { flex: 1 },
   name: { fontSize: 17, fontWeight: '700' },
   email: { fontSize: 13, marginTop: 2 },
