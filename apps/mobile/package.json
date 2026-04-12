@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "eas-build-pre-install": "cd ../.. && npm install -g pnpm && pnpm install --frozen-lockfile"
+    "eas-build-pre-install": "cd ../.. && npm install -g pnpm && pnpm install --frozen-lockfile",
+    "eas-build-post-install": "cd ../.. && pnpm install --frozen-lockfile"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
