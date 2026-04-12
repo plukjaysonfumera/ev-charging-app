@@ -17,6 +17,9 @@
       "bundleIdentifier": "com.phevph.app",
       "config": {
         "googleMapsApiKey": "AIzaSyD1h_YgQ9azXbxSZamLq8yGMB5e7RZt50g"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
