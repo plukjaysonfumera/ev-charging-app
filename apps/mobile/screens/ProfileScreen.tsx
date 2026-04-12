@@ -139,10 +139,17 @@ export default function ProfileScreen() {
                   )}
                 </View>
                 <Text style={[styles.vehicleDetail, { color: t.textSecondary }]}>
-                  {v.batteryKwh} kWh · {v.connectors.map(c => CONNECTOR_LABELS[c] ?? c).join(', ')}
+                  {v.batteryKwh} kWh{v.licensePlate ? ` · 🪪 ${v.licensePlate}` : ''}
                 </Text>
-                {v.licensePlate && (
-                  <Text style={[styles.vehicleDetail, { color: t.textSecondary }]}>🪪 {v.licensePlate}</Text>
+                {(v.connectors ?? []).length > 0 && (
+                  <View style={styles.connectorRow}>
+                    {(v.connectors ?? []).map(c => (
+                      <View key={c} style={[styles.connectorChip, { backgroundColor: t.badge }]}>
+                        <Ionicons name="flash" size={10} color={t.accent} />
+                        <Text style={[styles.connectorChipText, { color: t.accent }]}>{CONNECTOR_LABELS[c] ?? c}</Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
               </View>
               <View style={styles.vehicleActions}>
@@ -222,6 +229,9 @@ const styles = StyleSheet.create({
   defaultBadge: { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
   defaultText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   vehicleDetail: { fontSize: 12, marginTop: 2 },
+  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
+  connectorChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  connectorChipText: { fontSize: 10, fontWeight: '700' },
   vehicleActions: { flexDirection: 'row', gap: 8 },
   iconBtn: { padding: 6 },
   menuItem: {
