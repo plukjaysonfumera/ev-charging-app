@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  FlatList, Dimensions, Animated,
+  FlatList, Dimensions, Animated, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -76,11 +76,19 @@ export default function OnboardingScreen({ onDone }: Props) {
       <View style={styles.slide}>
         <Text style={[styles.slideLabel, { color: t.border }]}>{item.label}</Text>
 
-        <View style={[styles.iconRingOuter, { backgroundColor: t.accent + '0D' }]}>
-          <View style={[styles.iconRingInner, { backgroundColor: t.accent + '18' }]}>
-            <Ionicons name={item.icon} size={52} color={t.accent} />
+        {item.id === '1' ? (
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <View style={[styles.iconRingOuter, { backgroundColor: t.accent + '0D' }]}>
+            <View style={[styles.iconRingInner, { backgroundColor: t.accent + '18' }]}>
+              <Ionicons name={item.icon} size={52} color={t.accent} />
+            </View>
           </View>
-        </View>
+        )}
 
         <Text style={[styles.title, { color: t.text }]}>{item.title}</Text>
         <Text style={[styles.subtitle, { color: t.textSecondary }]}>{item.subtitle}</Text>
@@ -157,6 +165,7 @@ const styles = StyleSheet.create({
   flatList: { flex: 1 },
   slide: { width, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingBottom: 20 },
   slideLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 4, marginBottom: 40 },
+  logoImage: { width: 180, height: 180, marginBottom: 52 },
   iconRingOuter: { width: 188, height: 188, borderRadius: 94, alignItems: 'center', justifyContent: 'center', marginBottom: 52 },
   iconRingInner: { width: 120, height: 120, borderRadius: 60, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 36, fontWeight: '800', textAlign: 'center', marginBottom: 16, lineHeight: 44, letterSpacing: -0.5 },

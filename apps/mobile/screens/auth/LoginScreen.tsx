@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -35,6 +35,7 @@ export default function LoginScreen({ navigation }: any) {
       style={[styles.container, { backgroundColor: t.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <Text style={[styles.title, { color: t.accent }]}>PHEV PH</Text>
       <Text style={[styles.subtitle, { color: t.textSecondary }]}>Sign in to your account</Text>
 
@@ -89,6 +90,7 @@ function friendlyError(code: string) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  logo: { width: 90, height: 90, marginBottom: 12 },
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
   subtitle: { fontSize: 15, marginBottom: 32 },
   input: {
