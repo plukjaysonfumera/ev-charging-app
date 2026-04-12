@@ -141,16 +141,16 @@ export default function ProfileScreen() {
                 <Text style={[styles.vehicleDetail, { color: t.textSecondary }]}>
                   {v.batteryKwh} kWh{v.licensePlate ? ` · 🪪 ${v.licensePlate}` : ''}
                 </Text>
-                {(v.connectors ?? []).length > 0 && (
-                  <View style={styles.connectorRow}>
-                    {(v.connectors ?? []).map(c => (
-                      <View key={c} style={[styles.connectorChip, { backgroundColor: t.badge }]}>
-                        <Ionicons name="flash" size={10} color={t.accent} />
-                        <Text style={[styles.connectorChipText, { color: t.accent }]}>{CONNECTOR_LABELS[c] ?? c}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
+                <View style={styles.connectorRow}>
+                  {(v.connectors ?? []).length > 0 ? (v.connectors ?? []).map(c => (
+                    <View key={c} style={[styles.connectorChip, { backgroundColor: t.badge }]}>
+                      <Ionicons name="flash" size={10} color={t.accent} />
+                      <Text style={[styles.connectorChipText, { color: t.accent }]}>{CONNECTOR_LABELS[c] ?? c}</Text>
+                    </View>
+                  )) : (
+                    <Text style={[styles.vehicleDetail, { color: t.textTertiary }]}>No connector selected</Text>
+                  )}
+                </View>
               </View>
               <View style={styles.vehicleActions}>
                 {!v.isDefault && (
