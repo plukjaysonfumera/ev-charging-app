@@ -14,7 +14,7 @@ export default function PaymentSuccessScreen({ route, navigation }: any) {
 
       <Text style={[styles.title, { color: t.green }]}>Payment Successful!</Text>
       <Text style={[styles.amount, { color: t.text }]}>₱{amount}</Text>
-      <Text style={[styles.subtitle, { color: t.textSecondary }]}>Thank you for charging with Spark PH.</Text>
+      <Text style={[styles.subtitle, { color: t.textSecondary }]}>Thank you for charging with PHEV PH.</Text>
 
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: t.green }]}

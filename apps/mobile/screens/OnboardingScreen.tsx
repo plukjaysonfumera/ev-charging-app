@@ -14,7 +14,7 @@ const SLIDES = [
     id: '1',
     icon: 'flash' as const,
     label: '01',
-    title: 'Welcome to\nSpark PH',
+    title: 'Welcome to\nPHEV PH',
     subtitle: 'Power your journey.\nDiscover, charge, and move — smarter.',
   },
   {

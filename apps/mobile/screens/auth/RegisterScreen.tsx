@@ -43,7 +43,7 @@ export default function RegisterScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Text style={[styles.title, { color: t.accent }]}>Create Account</Text>
-      <Text style={[styles.subtitle, { color: t.textSecondary }]}>Join the Spark PH community</Text>
+      <Text style={[styles.subtitle, { color: t.textSecondary }]}>Join the PHEV PH community</Text>
 
       {error && <Text style={[styles.error, { color: t.destructive }]}>{error}</Text>}
 
