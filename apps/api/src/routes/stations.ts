@@ -76,7 +76,7 @@ router.get('/', async (req, res) => {
         ${searchFilter}
         GROUP BY s.id
         ORDER BY s.name ASC
-        LIMIT 200
+        LIMIT 2000
       `;
     }
 

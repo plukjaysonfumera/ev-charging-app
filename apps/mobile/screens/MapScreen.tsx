@@ -63,6 +63,8 @@ export default function MapScreen() {
   }, []);
 
   async function requestLocationAndLoad() {
+    // Always load all stations for the map; location is only used for zooming
+    loadAllStations();
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
@@ -70,25 +72,14 @@ export default function MapScreen() {
         const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setUserLocation(coords);
         zoomToLocation(coords);
-        loadNearbyStations(coords);
-      } else {
-        loadAllStations();
       }
     } catch {
-      loadAllStations();
+      // location unavailable — map already loaded, just keep Manila default
     }
   }
 
   function zoomToLocation(coords: { latitude: number; longitude: number }) {
     mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.3, longitudeDelta: 0.3 }, 800);
-  }
-
-  function loadNearbyStations(coords: { latitude: number; longitude: number }) {
-    fetch(`${API_URL}/api/v1/stations?lat=${coords.latitude}&lng=${coords.longitude}&radius=50`)
-      .then(res => res.json())
-      .then(json => setStations(json.data ?? []))
-      .catch(() => setError('Could not load stations.'))
-      .finally(() => setLoading(false));
   }
 
   function loadAllStations() {
