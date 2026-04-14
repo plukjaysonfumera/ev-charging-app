@@ -71,6 +71,9 @@ async function fetchOcmPage(offset: number, limit: number): Promise<any[]> {
     startindex: String(offset),
     compact: 'false',
     verbose: 'false',
+    // 20=Currently Available, 50=Operational, 75=Temporarily Unavailable
+    // Excludes: 0=Unknown, 100=Decommissioned, 150=Planned, 200=Deleted
+    statustypeid: '20,50,75',
     ...(OCM_API_KEY ? { key: OCM_API_KEY } : {}),
   });
 
