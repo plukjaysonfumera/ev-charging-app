@@ -14,21 +14,24 @@ const OCM_API_KEY = process.env.OCM_API_KEY || '';
 
 // ─── Connector type mapping (OCM ID → our enum) ──────────────────────────────
 const CONNECTOR_MAP: Record<number, string> = {
-  1:    'TYPE1',    // J1772
-  25:   'TYPE2',    // IEC 62196-2 (Mennekes)
-  1038: 'TYPE2',    // IEC 62196-2 socket only
-  33:   'CCS1',     // CCS Type 1 (Combo)
-  27:   'CCS2',     // CCS Type 2 (Combo)
+  1:    'TYPE1',    // J1772 (SAE)
   2:    'CHADEMO',  // CHAdeMO
-  30:   'GBAC',     // GB/T AC
+  3:    'TYPE2',    // EVSE (generic AC — treat as Type 2)
+  25:   'TYPE2',    // IEC 62196-2 (Mennekes)
   26:   'GBACD',    // GB/T DC
-  1036: 'TESLA_S',  // Tesla (proprietary)
-  32:   'TESLA_S',  // Tesla Supercharger
-  1039: 'NACS',     // NACS (J3400)
+  27:   'CCS2',     // CCS Type 2 Combo
+  30:   'GBAC',     // GB/T AC
+  32:   'TESLA_S',  // Tesla Supercharger V2 (non-NACS)
+  33:   'CCS1',     // CCS Type 1 Combo
+  36:   'TYPE2',    // IEC 62196-3 DC (Type 2 variant)
+  1036: 'TESLA_S',  // Tesla (proprietary plug)
+  1037: 'TESLA_S',  // Tesla Supercharger V3
+  1038: 'TYPE2',    // IEC 62196-2 socket only
+  1039: 'NACS',     // NACS / J3400
 };
 
 function mapConnector(typeId: number | undefined): string | null {
-  if (!typeId) return null;
+  if (typeId == null) return null;
   return CONNECTOR_MAP[typeId] ?? null;
 }
 
@@ -77,18 +80,24 @@ async function fetchOcmPage(offset: number, limit: number): Promise<any[]> {
   return res.json() as Promise<any[]>;
 }
 
-async function stationExistsNear(lat: number, lng: number): Promise<boolean> {
-  // Check if a station already exists within ~100 meters (0.001 degree ≈ 111m)
-  const result = await prisma.$queryRaw<any[]>`
+async function stationExistsNear(lat: number, lng: number, ocmId: number): Promise<boolean> {
+  // Skip if same OCM ID already imported
+  const byId = await prisma.$queryRaw<any[]>`
+    SELECT id FROM stations WHERE description = ${'ocm:' + ocmId} LIMIT 1
+  `;
+  if (byId.length > 0) return true;
+
+  // Skip if another station is within 50 m (avoids true duplicates)
+  const byProximity = await prisma.$queryRaw<any[]>`
     SELECT id FROM stations
     WHERE ST_DWithin(
       location,
       ST_MakePoint(${lng}::float, ${lat}::float)::geography,
-      100
+      50
     )
     LIMIT 1
   `;
-  return result.length > 0;
+  return byProximity.length > 0;
 }
 
 async function syncOcm() {
@@ -117,8 +126,8 @@ async function syncOcm() {
         const lng = parseFloat(addr.Longitude);
         if (isNaN(lat) || isNaN(lng)) { skipped++; continue; }
 
-        // Skip if already in DB (by proximity)
-        if (await stationExistsNear(lat, lng)) {
+        // Skip if already in DB (same OCM ID or within 50 m)
+        if (await stationExistsNear(lat, lng, poi.ID)) {
           skipped++;
           continue;
         }
@@ -158,10 +167,8 @@ async function syncOcm() {
           }
         }
 
-        // Need at least one valid port
-        if (ports.length === 0) { skipped++; continue; }
-
-        // Insert station
+        // Insert station (even if connector types couldn't be mapped —
+        // the pin still appears on the map; port details shown when known)
         const stationId = generateId();
         await prisma.$executeRaw`
           INSERT INTO stations (
