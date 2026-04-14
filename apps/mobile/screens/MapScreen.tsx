@@ -1,13 +1,14 @@
 import { API_URL } from '../lib/config';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import {
+  StyleSheet, View, ActivityIndicator, Text,
+  TouchableOpacity, ScrollView,
+} from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme';
-
-
 
 const MANILA_REGION: Region = {
   latitude: 14.5995,
@@ -15,6 +16,22 @@ const MANILA_REGION: Region = {
   latitudeDelta: 0.5,
   longitudeDelta: 0.5,
 };
+
+// Filter options — null means "All"
+const FILTERS: { label: string; value: string | null; icon: string }[] = [
+  { label: 'All',      value: null,       icon: 'flash' },
+  { label: 'CCS2',     value: 'CCS2',     icon: 'flash' },
+  { label: 'CHAdeMO',  value: 'CHADEMO',  icon: 'flash' },
+  { label: 'Type 2',   value: 'TYPE2',    icon: 'flash' },
+  { label: 'Type 1',   value: 'TYPE1',    icon: 'flash' },
+  { label: 'NACS',     value: 'NACS',     icon: 'flash' },
+  { label: 'GB/T AC',  value: 'GBAC',     icon: 'flash' },
+  { label: 'GB/T DC',  value: 'GBACD',    icon: 'flash' },
+  { label: 'DC Fast',  value: '__DCFC__', icon: 'flash' },
+];
+
+// Speed filter tag — stations that have at least one DCFC port
+const DCFC_TAG = '__DCFC__';
 
 interface Station {
   id: string;
@@ -25,6 +42,9 @@ interface Station {
   longitude: number;
   average_rating: number;
   port_count: number;
+  has_available: boolean;
+  connector_types: string[];
+  charging_speeds?: string[];
 }
 
 export default function MapScreen() {
@@ -35,6 +55,7 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   useEffect(() => {
     requestLocationAndLoad();
@@ -85,6 +106,28 @@ export default function MapScreen() {
     }
   }
 
+  // Apply active filter
+  const visibleStations = stations.filter(s => {
+    if (!activeFilter) return true;
+    if (activeFilter === DCFC_TAG) {
+      return (s.charging_speeds ?? []).includes('DCFC') ||
+        // fallback: high-kw stations are likely DCFC
+        (s.connector_types ?? []).some(c => ['CCS1','CCS2','CHADEMO','NACS'].includes(c));
+    }
+    return (s.connector_types ?? []).includes(activeFilter);
+  });
+
+  // Count per filter for badges
+  function countForFilter(value: string | null): number {
+    if (!value) return stations.length;
+    if (value === DCFC_TAG) {
+      return stations.filter(s =>
+        (s.connector_types ?? []).some(c => ['CCS1','CCS2','CHADEMO','NACS'].includes(c))
+      ).length;
+    }
+    return stations.filter(s => (s.connector_types ?? []).includes(value)).length;
+  }
+
   return (
     <View style={styles.container}>
       <MapView
@@ -94,7 +137,7 @@ export default function MapScreen() {
         initialRegion={MANILA_REGION}
         showsUserLocation
       >
-        {stations.map(station => (
+        {visibleStations.map(station => (
           <Marker
             key={station.id}
             coordinate={{ latitude: Number(station.latitude), longitude: Number(station.longitude) }}
@@ -102,21 +145,72 @@ export default function MapScreen() {
             description={`${station.address} · Tap for details`}
             onCalloutPress={() => navigation.navigate('StationDetail', { stationId: station.id })}
           >
-            <View style={[styles.markerContainer, { backgroundColor: t.accent }]}>
+            <View style={[styles.markerContainer, {
+              backgroundColor: station.has_available ? t.accent : '#888',
+            }]}>
               <Ionicons name="flash" size={14} color="#fff" />
             </View>
-            <View style={[styles.markerTail, { borderTopColor: t.accent }]} />
+            <View style={[styles.markerTail, {
+              borderTopColor: station.has_available ? t.accent : '#888',
+            }]} />
           </Marker>
         ))}
       </MapView>
 
-      <TouchableOpacity style={[styles.locationButton, { backgroundColor: t.mapButton }]} onPress={handleMyLocation}>
-        <Ionicons name="locate" size={22} color={t.green} />
+      {/* Filter bar */}
+      <View style={[styles.filterBar, { backgroundColor: t.background }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {FILTERS.map(f => {
+            const count = countForFilter(f.value);
+            if (count === 0 && f.value !== null) return null;
+            const active = activeFilter === f.value;
+            return (
+              <TouchableOpacity
+                key={f.label}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.border },
+                ]}
+                onPress={() => setActiveFilter(active ? null : f.value)}
+              >
+                <Ionicons name="flash" size={11} color={active ? '#fff' : t.accent} />
+                <Text style={[styles.filterLabel, { color: active ? '#fff' : t.text }]}>{f.label}</Text>
+                {f.value !== null && (
+                  <View style={[styles.filterBadge, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : t.badge }]}>
+                    <Text style={[styles.filterBadgeText, { color: active ? '#fff' : t.badgeText }]}>{count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Station count */}
+      {!loading && (
+        <View style={[styles.countBadge, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Text style={[styles.countText, { color: t.textSecondary }]}>
+            {visibleStations.length} station{visibleStations.length !== 1 ? 's' : ''}
+            {activeFilter ? ` · ${FILTERS.find(f => f.value === activeFilter)?.label}` : ''}
+          </Text>
+        </View>
+      )}
+
+      {/* My location button */}
+      <TouchableOpacity
+        style={[styles.locationButton, { backgroundColor: t.mapButton }]}
+        onPress={handleMyLocation}
+      >
+        <Ionicons name="locate" size={22} color={t.accent} />
       </TouchableOpacity>
 
       {loading && (
         <View style={[styles.overlay, { backgroundColor: t.overlay }]}>
-          <ActivityIndicator size="large" color={t.green} />
+          <ActivityIndicator size="large" color={t.accent} />
         </View>
       )}
 
@@ -132,6 +226,58 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+
+  filterBar: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    paddingTop: 52,
+    paddingBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  filterScroll: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  countBadge: {
+    position: 'absolute',
+    top: 108,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  countText: { fontSize: 12, fontWeight: '600' },
+
   locationButton: {
     position: 'absolute', bottom: 32, right: 16,
     borderRadius: 28, width: 48, height: 48,
