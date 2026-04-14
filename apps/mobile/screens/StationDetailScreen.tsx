@@ -2,7 +2,7 @@ import { API_URL } from '../lib/config';
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  ActivityIndicator, TouchableOpacity, Alert,
+  ActivityIndicator, TouchableOpacity, Alert, Linking, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -34,6 +34,48 @@ interface Station {
   id: string; name: string; address: string; city: string;
   province: string; network_name?: string; amenities: string[];
   average_rating: number; review_count: number; ports: Port[];
+  latitude?: number; longitude?: number;
+}
+
+function openDirections(lat: number, lng: number, name: string) {
+  const label = encodeURIComponent(name);
+  Alert.alert(
+    'Get Directions',
+    'Open with:',
+    [
+      {
+        text: 'Google Maps',
+        onPress: () => {
+          const url = Platform.select({
+            ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+            android: `google.navigation:q=${lat},${lng}`,
+          });
+          Linking.canOpenURL(url!).then(supported => {
+            if (supported) {
+              Linking.openURL(url!);
+            } else {
+              // Fallback to browser
+              Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${label}`);
+            }
+          });
+        },
+      },
+      {
+        text: 'Waze',
+        onPress: () => {
+          const url = `waze://?ll=${lat},${lng}&navigate=yes`;
+          Linking.canOpenURL(url).then(supported => {
+            if (supported) {
+              Linking.openURL(url);
+            } else {
+              Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`);
+            }
+          });
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]
+  );
 }
 
 interface Review {
@@ -99,11 +141,22 @@ export default function StationDetailScreen({ route, navigation }: any) {
       <Text style={[styles.name, { color: t.green }]}>{station.name}</Text>
       <Text style={[styles.address, { color: t.textSecondary }]}>{station.address}, {station.city}</Text>
 
-      {station.network_name && (
-        <View style={[styles.networkBadge, { backgroundColor: t.badge }]}>
-          <Text style={[styles.networkText, { color: t.badgeText }]}>{station.network_name}</Text>
-        </View>
-      )}
+      <View style={styles.topActions}>
+        {station.network_name && (
+          <View style={[styles.networkBadge, { backgroundColor: t.badge }]}>
+            <Text style={[styles.networkText, { color: t.badgeText }]}>{station.network_name}</Text>
+          </View>
+        )}
+        {station.latitude != null && station.longitude != null && (
+          <TouchableOpacity
+            style={[styles.directionsButton, { backgroundColor: t.accent }]}
+            onPress={() => openDirections(station.latitude!, station.longitude!, station.name)}
+          >
+            <Ionicons name="navigate" size={15} color="#fff" />
+            <Text style={styles.directionsText}>Get Directions</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={styles.row}>
         <View style={styles.stars}>
@@ -208,8 +261,11 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
   address: { fontSize: 14, marginBottom: 12 },
-  networkBadge: { alignSelf: 'flex-start', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 12 },
+  topActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  networkBadge: { alignSelf: 'flex-start', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   networkText: { fontSize: 12, fontWeight: '600' },
+  directionsButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  directionsText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   stars: { flexDirection: 'row', marginRight: 8 },
   reviewCount: { fontSize: 13 },
