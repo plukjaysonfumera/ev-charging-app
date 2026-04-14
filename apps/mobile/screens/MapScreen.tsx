@@ -2,7 +2,7 @@ import { API_URL } from '../lib/config';
 import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, ActivityIndicator, Text,
-  TouchableOpacity, ScrollView,
+  TouchableOpacity, ScrollView, TextInput,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
@@ -56,6 +56,7 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [mapSearch, setMapSearch] = useState('');
 
   useEffect(() => {
     requestLocationAndLoad();
@@ -106,15 +107,24 @@ export default function MapScreen() {
     }
   }
 
-  // Apply active filter
+  // Apply active filter + text search
+  const searchQ = mapSearch.trim().toLowerCase();
   const visibleStations = stations.filter(s => {
-    if (!activeFilter) return true;
-    if (activeFilter === DCFC_TAG) {
-      return (s.charging_speeds ?? []).includes('DCFC') ||
-        // fallback: high-kw stations are likely DCFC
-        (s.connector_types ?? []).some(c => ['CCS1','CCS2','CHADEMO','NACS'].includes(c));
+    if (activeFilter) {
+      if (activeFilter === DCFC_TAG) {
+        const isDcfc = (s.charging_speeds ?? []).includes('DCFC') ||
+          (s.connector_types ?? []).some(c => ['CCS1','CCS2','CHADEMO','NACS'].includes(c));
+        if (!isDcfc) return false;
+      } else if (!(s.connector_types ?? []).includes(activeFilter)) {
+        return false;
+      }
     }
-    return (s.connector_types ?? []).includes(activeFilter);
+    if (searchQ) {
+      return s.name.toLowerCase().includes(searchQ) ||
+        s.city.toLowerCase().includes(searchQ) ||
+        s.address.toLowerCase().includes(searchQ);
+    }
+    return true;
   });
 
   // Count per filter for badges
@@ -159,6 +169,20 @@ export default function MapScreen() {
 
       {/* Filter bar */}
       <View style={[styles.filterBar, { backgroundColor: t.background }]}>
+        {/* Search input */}
+        <View style={[styles.mapSearchContainer, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Ionicons name="search" size={16} color={t.textTertiary} style={styles.mapSearchIcon} />
+          <TextInput
+            style={[styles.mapSearchInput, { color: t.text }]}
+            placeholder="Search stations, cities..."
+            placeholderTextColor={t.placeholder}
+            value={mapSearch}
+            onChangeText={setMapSearch}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+          />
+        </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -238,6 +262,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  mapSearchContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 12, marginBottom: 8,
+    borderRadius: 10, borderWidth: 1,
+    paddingHorizontal: 10,
+  },
+  mapSearchIcon: { marginRight: 6 },
+  mapSearchInput: { flex: 1, paddingVertical: 9, fontSize: 14 },
   filterScroll: {
     paddingHorizontal: 12,
     gap: 8,
@@ -269,7 +301,7 @@ const styles = StyleSheet.create({
 
   countBadge: {
     position: 'absolute',
-    top: 108,
+    top: 152,
     alignSelf: 'center',
     paddingHorizontal: 12,
     paddingVertical: 5,

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const router = Router();
@@ -17,10 +18,15 @@ function serializeStation(s: any) {
   };
 }
 
-// GET /api/v1/stations?lat=14.5995&lng=120.9842&radius=10
+// GET /api/v1/stations?lat=14.5995&lng=120.9842&radius=10&q=evro
 router.get('/', async (req, res) => {
   try {
-    const { lat, lng, radius = '10' } = req.query;
+    const { lat, lng, radius = '10', q } = req.query;
+    const searchTerm = typeof q === 'string' && q.trim() ? q.trim() : null;
+    const likeParam = searchTerm ? `%${searchTerm}%` : null;
+    const searchFilter = likeParam
+      ? Prisma.sql`AND (s.name ILIKE ${likeParam} OR s.city ILIKE ${likeParam} OR s.address ILIKE ${likeParam})`
+      : Prisma.empty;
 
     let stations: any[];
 
@@ -47,6 +53,7 @@ router.get('/', async (req, res) => {
           ${radiusMeters}
         )
         AND s.status = 'ACTIVE'
+        ${searchFilter}
         GROUP BY s.id
         ORDER BY distance_meters ASC
       `;
@@ -66,9 +73,10 @@ router.get('/', async (req, res) => {
         LEFT JOIN reviews r ON r.station_id = s.id
         LEFT JOIN ports p ON p.station_id = s.id
         WHERE s.status = 'ACTIVE'
+        ${searchFilter}
         GROUP BY s.id
         ORDER BY s.name ASC
-        LIMIT 100
+        LIMIT 200
       `;
     }
 

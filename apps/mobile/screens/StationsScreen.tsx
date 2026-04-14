@@ -41,12 +41,36 @@ export default function StationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Station[] | null>(null);
   const [connectorFilter, setConnectorFilter] = useState('All');
   const [availabilityFilter, setAvailabilityFilter] = useState('All');
   const [showSaved, setShowSaved] = useState(false);
 
   useEffect(() => { loadStations(); }, []);
-  useEffect(() => { applyFilters(); }, [search, connectorFilter, availabilityFilter, stations, showSaved, favorites]);
+  useEffect(() => { applyFilters(); }, [search, searchResults, connectorFilter, availabilityFilter, stations, showSaved, favorites]);
+
+  // Debounced API search — fires when query >= 2 chars
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (trimmed.length < 2) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`${API_URL}/api/v1/stations?q=${encodeURIComponent(trimmed)}`);
+        const json = await res.json();
+        setSearchResults(json.data ?? []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Re-apply filters when returning from detail (bookmark may have changed)
   useFocusEffect(useCallback(() => { applyFilters(); }, [stations, showSaved, favorites]));
@@ -66,21 +90,12 @@ export default function StationsScreen() {
   }
 
   function applyFilters() {
-    let result = [...stations];
+    // Use API search results when active, otherwise fall back to preloaded list
+    let result = searchResults !== null ? [...searchResults] : [...stations];
 
     // Saved filter
     if (showSaved) {
       result = result.filter(s => isFavorite(s.id));
-    }
-
-    // Text search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(s =>
-        s.name.toLowerCase().includes(q) ||
-        s.city.toLowerCase().includes(q) ||
-        s.address.toLowerCase().includes(q)
-      );
     }
 
     // Connector filter
@@ -196,7 +211,10 @@ export default function StationsScreen() {
 
       {/* Search */}
       <View style={[styles.searchContainer, { backgroundColor: t.surfaceElevated, borderColor: t.border }]}>
-        <Ionicons name="search" size={18} color={t.textTertiary} style={styles.searchIcon} />
+        {searching
+          ? <ActivityIndicator size="small" color={t.green} style={styles.searchIcon} />
+          : <Ionicons name="search" size={18} color={t.textTertiary} style={styles.searchIcon} />
+        }
         <TextInput
           style={[styles.searchInput, { color: t.text }]}
           placeholder="Search stations, cities..."
@@ -292,7 +310,7 @@ export default function StationsScreen() {
               size={48} color={t.border}
             />
             <Text style={[styles.emptyText, { color: t.textTertiary }]}>
-              {showSaved ? 'No saved stations yet' : 'No stations found'}
+              {showSaved ? 'No saved stations yet' : searchResults !== null ? `No results for "${search.trim()}"` : 'No stations found'}
             </Text>
             {showSaved && (
               <Text style={[styles.emptySubtext, { color: t.textTertiary }]}>
