@@ -36,6 +36,18 @@ interface Station {
   province: string; network_name?: string; amenities: string[];
   average_rating: number; review_count: number; ports: Port[];
   latitude?: number; longitude?: number;
+  phone?: string; website?: string;
+  opening_hours?: Record<string, string>;
+}
+
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const DAY_LABELS: Record<string, string> = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+};
+
+function todayKey(): string {
+  return DAY_KEYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
 }
 
 function openDirections(lat: number, lng: number, name: string) {
@@ -190,6 +202,54 @@ export default function StationDetailScreen({ route, navigation }: any) {
         </Text>
       </View>
 
+      {/* Contact & Hours */}
+      {(station.phone || station.website || station.opening_hours) && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: t.text }]}>Info</Text>
+
+          {station.phone && (
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => Linking.openURL(`tel:${station.phone}`)}
+            >
+              <Ionicons name="call-outline" size={16} color={t.green} style={styles.infoIcon} />
+              <Text style={[styles.infoLink, { color: t.green }]}>{station.phone}</Text>
+            </TouchableOpacity>
+          )}
+
+          {station.website && (
+            <TouchableOpacity
+              style={styles.infoRow}
+              onPress={() => Linking.openURL(station.website!)}
+            >
+              <Ionicons name="globe-outline" size={16} color={t.green} style={styles.infoIcon} />
+              <Text style={[styles.infoLink, { color: t.green }]} numberOfLines={1}>
+                {station.website.replace(/^https?:\/\//, '')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {station.opening_hours && (
+            <View style={[styles.hoursCard, { backgroundColor: t.surface, borderColor: t.border }]}>
+              {DAY_KEYS.map(key => {
+                const hours = station.opening_hours![key];
+                const isToday = key === todayKey();
+                return (
+                  <View key={key} style={[styles.hoursRow, isToday && { backgroundColor: t.green + '14' }]}>
+                    <Text style={[styles.hoursDay, { color: isToday ? t.green : t.text }, isToday && { fontWeight: '700' }]}>
+                      {DAY_LABELS[key]}
+                    </Text>
+                    <Text style={[styles.hoursTime, { color: hours ? (isToday ? t.green : t.textSecondary) : t.textTertiary }]}>
+                      {hours ?? 'Closed'}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
       {(station.amenities ?? []).length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: t.text }]}>Amenities</Text>
@@ -314,4 +374,11 @@ const styles = StyleSheet.create({
   reviewStars: { flexDirection: 'row' },
   reviewComment: { fontSize: 14, marginBottom: 6, lineHeight: 20 },
   reviewDate: { fontSize: 12 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  infoIcon: { marginRight: 8 },
+  infoLink: { fontSize: 14, textDecorationLine: 'underline', flex: 1 },
+  hoursCard: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', marginTop: 4 },
+  hoursRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 9 },
+  hoursDay: { fontSize: 14 },
+  hoursTime: { fontSize: 14 },
 });

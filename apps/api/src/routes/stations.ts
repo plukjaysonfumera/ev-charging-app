@@ -87,6 +87,7 @@ router.get('/:id', async (req, res) => {
       SELECT
         s.id, s.name, s.address, s.city, s.province,
         s.status, s.amenities, s.photos, s.network_name,
+        s.phone, s.website, s.opening_hours,
         ST_X(s.location::geometry) AS longitude,
         ST_Y(s.location::geometry) AS latitude,
         COALESCE(AVG(r.rating), 0) AS average_rating,
