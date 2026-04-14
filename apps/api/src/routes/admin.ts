@@ -207,4 +207,109 @@ router.get('/stations/:id/stats', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/v1/admin/sync-ocm
+// Triggers Open Charge Map sync for Philippines stations.
+// Protected by a shared secret in the OCM_SYNC_SECRET env var.
+router.post('/sync-ocm', async (req: Request, res: Response) => {
+  const secret = process.env.OCM_SYNC_SECRET;
+  if (secret && req.headers['x-sync-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Run sync in background — respond immediately
+  res.json({ message: 'OCM sync started. Check server logs for progress.' });
+
+  (async () => {
+    const OCM_BASE = 'https://api.openchargemap.io/v3/poi/';
+    const OCM_API_KEY = process.env.OCM_API_KEY || '';
+
+    const CONNECTOR_MAP: Record<number, string> = {
+      1: 'TYPE1', 25: 'TYPE2', 1038: 'TYPE2', 33: 'CCS1', 27: 'CCS2',
+      2: 'CHADEMO', 30: 'GBAC', 26: 'GBACD', 1036: 'TESLA_S', 32: 'TESLA_S', 1039: 'NACS',
+    };
+
+    function mapChargingSpeed(conn: any): string {
+      const lvl = conn.Level?.ID;
+      const kw = conn.PowerKW ?? 0;
+      if (lvl === 3 || kw >= 40) return 'DCFC';
+      if (lvl === 2 || kw >= 3.7) return 'LEVEL2';
+      return 'LEVEL1';
+    }
+    function estimatePrice(speed: string): number {
+      return speed === 'DCFC' ? 16 : speed === 'LEVEL2' ? 12 : 8;
+    }
+    function genId(): string {
+      return `c${Math.random().toString(36).slice(2, 11)}${Date.now().toString(36)}`;
+    }
+
+    let offset = 0; let created = 0; let skipped = 0;
+    console.log('[OCM Sync] Starting PH station sync...');
+
+    while (true) {
+      const params = new URLSearchParams({
+        output: 'json', countrycode: 'PH', maxresults: '100',
+        startindex: String(offset), compact: 'false', verbose: 'false',
+        statustypeid: '50',
+        ...(OCM_API_KEY ? { key: OCM_API_KEY } : {}),
+      });
+      const batch: any[] = await fetch(`${OCM_BASE}?${params}`).then(r => r.json() as Promise<any[]>);
+      if (!batch.length) break;
+
+      for (const poi of batch) {
+        try {
+          const addr = poi.AddressInfo;
+          if (!addr) { skipped++; continue; }
+          const lat = parseFloat(addr.Latitude);
+          const lng = parseFloat(addr.Longitude);
+          if (isNaN(lat) || isNaN(lng)) { skipped++; continue; }
+
+          const near = await prisma.$queryRaw<any[]>`
+            SELECT id FROM stations WHERE ST_DWithin(location, ST_MakePoint(${lng}::float,${lat}::float)::geography, 100) LIMIT 1
+          `;
+          if (near.length > 0) { skipped++; continue; }
+
+          const ports: any[] = [];
+          let pi = 1;
+          for (const conn of (poi.Connections ?? [])) {
+            const connector = CONNECTOR_MAP[conn.ConnectionType?.ID];
+            if (!connector) continue;
+            const speed = mapChargingSpeed(conn);
+            const kw = conn.PowerKW ?? (speed === 'DCFC' ? 50 : 7.4);
+            for (let q = 0; q < Math.min(conn.Quantity ?? 1, 4); q++) {
+              ports.push({ number: `P${pi++}`, connector, speed, kw, price: estimatePrice(speed) });
+            }
+          }
+          if (!ports.length) { skipped++; continue; }
+
+          const province = /metro\s*manila|ncr/i.test(addr.StateOrProvince ?? '') ? 'Metro Manila' : (addr.StateOrProvince ?? addr.Town ?? 'Philippines');
+          const stationId = genId();
+          await prisma.$executeRaw`
+            INSERT INTO stations (id, name, description, address, city, province, status, amenities, network_name, location, phone, website, photos, created_at, updated_at)
+            VALUES (${stationId}, ${(addr.Title ?? 'Unknown').trim()}, ${`ocm:${poi.ID}`},
+              ${[addr.AddressLine1, addr.AddressLine2].filter(Boolean).join(', ') || addr.Title},
+              ${addr.Town ?? province}, ${province}, 'ACTIVE', ARRAY[]::text[],
+              ${poi.OperatorInfo?.Title ?? null}, ST_MakePoint(${lng}::float,${lat}::float)::geography,
+              ${addr.ContactTelephone1 ?? null}, ${addr.RelatedURL ?? poi.OperatorInfo?.WebsiteURL ?? null},
+              ARRAY[]::text[], NOW(), NOW())
+          `;
+          for (let i = 0; i < ports.length; i++) {
+            const p = ports[i];
+            await prisma.$executeRaw`
+              INSERT INTO ports (id, station_id, port_number, connector_type, charging_speed, max_kw, price_per_kwh, currency, status, created_at, updated_at)
+              VALUES (${genId() + i}, ${stationId}, ${p.number}, ${p.connector}::"ConnectorType", ${p.speed}::"ChargingSpeed", ${p.kw}::float, ${p.price}::decimal, 'PHP', 'AVAILABLE', NOW(), NOW())
+            `;
+          }
+          console.log(`[OCM Sync] + ${addr.Title} — ${addr.Town}`);
+          created++;
+        } catch (e: any) { console.error('[OCM Sync] Error:', e.message); }
+      }
+
+      if (batch.length < 100) break;
+      offset += 100;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    console.log(`[OCM Sync] Done: ${created} created, ${skipped} skipped.`);
+  })().catch(e => console.error('[OCM Sync] Fatal:', e.message));
+});
+
 export default router;
