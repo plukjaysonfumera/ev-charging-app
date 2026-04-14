@@ -7,6 +7,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme';
+import { useFavorites } from '../hooks/useFavorites';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 
 
@@ -32,6 +35,7 @@ interface Station {
 export default function StationsScreen() {
   const t = useTheme();
   const navigation = useNavigation<any>();
+  const { favorites, isFavorite } = useFavorites();
   const [stations, setStations] = useState<Station[]>([]);
   const [filtered, setFiltered] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,9 +43,13 @@ export default function StationsScreen() {
   const [search, setSearch] = useState('');
   const [connectorFilter, setConnectorFilter] = useState('All');
   const [availabilityFilter, setAvailabilityFilter] = useState('All');
+  const [showSaved, setShowSaved] = useState(false);
 
   useEffect(() => { loadStations(); }, []);
-  useEffect(() => { applyFilters(); }, [search, connectorFilter, availabilityFilter, stations]);
+  useEffect(() => { applyFilters(); }, [search, connectorFilter, availabilityFilter, stations, showSaved, favorites]);
+
+  // Re-apply filters when returning from detail (bookmark may have changed)
+  useFocusEffect(useCallback(() => { applyFilters(); }, [stations, showSaved, favorites]));
 
   async function loadStations(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
@@ -59,6 +67,11 @@ export default function StationsScreen() {
 
   function applyFilters() {
     let result = [...stations];
+
+    // Saved filter
+    if (showSaved) {
+      result = result.filter(s => isFavorite(s.id));
+    }
 
     // Text search
     if (search.trim()) {
@@ -162,6 +175,25 @@ export default function StationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: t.surface }]}>
+      {/* All / Saved toggle */}
+      <View style={[styles.toggleRow, { borderBottomColor: t.border }]}>
+        <TouchableOpacity
+          style={[styles.toggleTab, !showSaved && { borderBottomColor: t.accent, borderBottomWidth: 2 }]}
+          onPress={() => setShowSaved(false)}
+        >
+          <Text style={[styles.toggleText, { color: showSaved ? t.textTertiary : t.accent }]}>All Stations</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleTab, showSaved && { borderBottomColor: t.accent, borderBottomWidth: 2 }]}
+          onPress={() => setShowSaved(true)}
+        >
+          <Ionicons name="bookmark" size={14} color={showSaved ? t.accent : t.textTertiary} />
+          <Text style={[styles.toggleText, { color: showSaved ? t.accent : t.textTertiary }]}>
+            Saved{favorites.size > 0 ? ` (${favorites.size})` : ''}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Search */}
       <View style={[styles.searchContainer, { backgroundColor: t.surfaceElevated, borderColor: t.border }]}>
         <Ionicons name="search" size={18} color={t.textTertiary} style={styles.searchIcon} />
@@ -255,9 +287,19 @@ export default function StationsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.centered}>
-            <Ionicons name="flash-off-outline" size={48} color={t.border} />
-            <Text style={[styles.emptyText, { color: t.textTertiary }]}>No stations found</Text>
-            {activeFilterCount > 0 && (
+            <Ionicons
+              name={showSaved ? 'bookmark-outline' : 'flash-off-outline'}
+              size={48} color={t.border}
+            />
+            <Text style={[styles.emptyText, { color: t.textTertiary }]}>
+              {showSaved ? 'No saved stations yet' : 'No stations found'}
+            </Text>
+            {showSaved && (
+              <Text style={[styles.emptySubtext, { color: t.textTertiary }]}>
+                Tap the bookmark icon on any station to save it here
+              </Text>
+            )}
+            {!showSaved && activeFilterCount > 0 && (
               <TouchableOpacity onPress={clearFilters} style={{ marginTop: 12 }}>
                 <Text style={[styles.clearBtnText, { color: t.green }]}>Clear filters</Text>
               </TouchableOpacity>
@@ -317,4 +359,8 @@ const styles = StyleSheet.create({
   dot: { width: 3, height: 3, borderRadius: 2, marginHorizontal: 8 },
   portCount: { fontSize: 13, marginLeft: 2, fontWeight: '600' },
   emptyText: { fontSize: 15, marginTop: 12 },
+  emptySubtext: { fontSize: 13, marginTop: 6, textAlign: 'center', paddingHorizontal: 32 },
+  toggleRow: { flexDirection: 'row', borderBottomWidth: 1 },
+  toggleTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+  toggleText: { fontSize: 14, fontWeight: '600' },
 });

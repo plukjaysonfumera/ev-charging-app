@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../lib/firebase';
 import { useTheme } from '../theme';
+import { useFavorites } from '../hooks/useFavorites';
 
 
 
@@ -91,6 +92,7 @@ export default function StationDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingPort, setStartingPort] = useState<string | null>(null);
+  const { isFavorite, toggle } = useFavorites();
 
   async function startCharging(port: Port) {
     const user = auth.currentUser;
@@ -119,6 +121,25 @@ export default function StationDetailScreen({ route, navigation }: any) {
       .catch(() => setError('Could not load station details'))
       .finally(() => setLoading(false));
   }, [stationId]);
+
+  // Bookmark button in header
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => toggle(stationId)}
+          style={{ marginRight: 4, padding: 8 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons
+            name={isFavorite(stationId) ? 'bookmark' : 'bookmark-outline'}
+            size={22}
+            color={isFavorite(stationId) ? t.accent : t.headerText}
+          />
+        </TouchableOpacity>
+      ),
+    });
+  }, [stationId, isFavorite(stationId)]);
 
   useFocusEffect(useCallback(() => {
     fetch(`${API_URL}/api/v1/reviews?stationId=${stationId}`)
