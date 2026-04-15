@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 // In development, use your local IP. In production EAS builds, use the Railway URL.
 const ENV = {
   dev: {
-    API_URL: 'http://192.168.1.151:3000',
+    API_URL: 'https://api-production-d60b.up.railway.app',
   },
   prod: {
     API_URL: 'https://api-production-d60b.up.railway.app',
