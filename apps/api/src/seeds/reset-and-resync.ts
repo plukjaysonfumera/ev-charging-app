@@ -20,6 +20,15 @@ async function main() {
   const count = Number(seeded[0].count);
   console.log(`🗑  Deleting ${count} seeded placeholder station(s)…`);
 
+  // Delete dependent records first to satisfy foreign key constraints
+  await prisma.$executeRaw`
+    DELETE FROM charging_sessions
+    WHERE station_id IN (
+      SELECT id FROM stations
+      WHERE description IS NULL OR description NOT LIKE 'ocm:%'
+    )
+  `;
+
   await prisma.$executeRaw`
     DELETE FROM stations
     WHERE description IS NULL OR description NOT LIKE 'ocm:%'
