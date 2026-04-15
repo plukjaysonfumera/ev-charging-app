@@ -71,14 +71,13 @@ async function fetchOcmPage(offset: number, limit: number): Promise<any[]> {
     startindex: String(offset),
     compact: 'false',
     verbose: 'false',
-    // 1=Public, 4=Privately Owned but Publicly Accessible (malls, hotels, Shell etc.)
-    // 5=Membership Required, 6=Notice Required
-    // Excludes: 2=Private Restricted, 3=Staff Only, 7=Private
-    usagetypeid: '1,4,5,6',
     ...(OCM_API_KEY ? { key: OCM_API_KEY } : {}),
   });
 
-  const url = `${OCM_BASE}?${params}`;
+  // Append usagetypeid with literal commas — URLSearchParams encodes them
+  // as %2C which OCM ignores, so we append to the URL string directly.
+  // 1=Public, 4=Privately Owned Publicly Accessible, 5=Membership, 6=Notice Required
+  const url = `${OCM_BASE}?${params}&usagetypeid=1,4,5,6`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`OCM API error: ${res.status} ${res.statusText}`);
   return res.json() as Promise<any[]>;
