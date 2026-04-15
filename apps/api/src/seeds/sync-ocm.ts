@@ -71,8 +71,8 @@ async function fetchOcmPage(offset: number, limit: number): Promise<any[]> {
     startindex: String(offset),
     compact: 'false',
     verbose: 'false',
-    // 50=Operational — the only confirmed real public stations
-    statustypeid: '50',
+    // Public access only — eliminates home chargers and private stations
+    usagetypeid: '1',
     ...(OCM_API_KEY ? { key: OCM_API_KEY } : {}),
   });
 
