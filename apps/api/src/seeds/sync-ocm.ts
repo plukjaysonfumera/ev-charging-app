@@ -71,8 +71,10 @@ async function fetchOcmPage(offset: number, limit: number): Promise<any[]> {
     startindex: String(offset),
     compact: 'false',
     verbose: 'false',
-    // Public access only — eliminates home chargers and private stations
-    usagetypeid: '1',
+    // 1=Public, 4=Privately Owned but Publicly Accessible (malls, hotels, Shell etc.)
+    // 5=Membership Required, 6=Notice Required
+    // Excludes: 2=Private Restricted, 3=Staff Only, 7=Private
+    usagetypeid: '1,4,5,6',
     ...(OCM_API_KEY ? { key: OCM_API_KEY } : {}),
   });
 
