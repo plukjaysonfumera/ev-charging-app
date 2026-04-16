@@ -11,6 +11,13 @@ import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme';
 
+interface Stats {
+  sessions: number;
+  totalKwh: number;
+  totalSpent: number;
+  totalMinutes: number;
+}
+
 
 
 const CONNECTOR_LABELS: Record<string, string> = {
@@ -35,8 +42,27 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stats | null>(null);
 
-  useFocusEffect(useCallback(() => { loadVehicles(); }, []));
+  useFocusEffect(useCallback(() => {
+    loadVehicles();
+    loadStats();
+  }, []));
+
+  async function loadStats() {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API_URL}/api/v1/sessions?firebaseUid=${user.uid}`);
+      const json = await res.json();
+      const completed = (json.data ?? []).filter((s: any) => s.status === 'COMPLETED');
+      setStats({
+        sessions: completed.length,
+        totalKwh: completed.reduce((sum: number, s: any) => sum + (s.energyKwh ?? 0), 0),
+        totalSpent: completed.reduce((sum: number, s: any) => sum + Number(s.totalAmount ?? 0), 0),
+        totalMinutes: completed.reduce((sum: number, s: any) => sum + (s.durationMinutes ?? 0), 0),
+      });
+    } catch { /* silent */ }
+  }
 
   async function loadVehicles() {
     if (!user) return;
@@ -95,6 +121,33 @@ export default function ProfileScreen() {
           <Ionicons name="create-outline" size={20} color={t.accent} />
         </TouchableOpacity>
       </View>
+
+      {/* Charging Stats */}
+      {stats && stats.sessions > 0 && (
+        <View style={[styles.statsCard, { backgroundColor: t.accent }]}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.sessions}</Text>
+            <Text style={styles.statLabel}>Sessions</Text>
+          </View>
+          <View style={[styles.statDivider]} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.totalKwh.toFixed(1)}</Text>
+            <Text style={styles.statLabel}>kWh</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>₱{stats.totalSpent.toFixed(0)}</Text>
+            <Text style={styles.statLabel}>Spent</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {stats.totalMinutes < 60 ? `${stats.totalMinutes}m` : `${Math.floor(stats.totalMinutes / 60)}h`}
+            </Text>
+            <Text style={styles.statLabel}>Time</Text>
+          </View>
+        </View>
+      )}
 
       {/* My Vehicles */}
       <View style={styles.section}>
@@ -241,4 +294,9 @@ const styles = StyleSheet.create({
   },
   menuItemLast: { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomWidth: 0 },
   menuText: { flex: 1, fontSize: 15 },
+  statsCard: { flexDirection: 'row', borderRadius: 14, padding: 16, marginBottom: 16 },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  statLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 4 },
 });

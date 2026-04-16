@@ -3,6 +3,25 @@ import { prisma } from '../lib/prisma';
 
 const router = Router();
 
+// GET /api/v1/users/profile?firebaseUid=xxx
+router.get('/profile', async (req, res) => {
+  try {
+    const { firebaseUid } = req.query;
+    if (!firebaseUid) return res.status(400).json({ error: 'firebaseUid is required' });
+
+    const user = await prisma.user.findUnique({
+      where: { firebaseUid: firebaseUid as string },
+      select: { id: true, displayName: true, email: true, phoneNumber: true, role: true, createdAt: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ data: user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
 // PATCH /api/v1/users/profile
 router.patch('/profile', async (req, res) => {
   try {

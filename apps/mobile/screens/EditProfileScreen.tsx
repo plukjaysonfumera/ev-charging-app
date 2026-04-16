@@ -1,5 +1,5 @@
 import { API_URL } from '../lib/config';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
@@ -17,6 +17,14 @@ export default function EditProfileScreen({ navigation }: any) {
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch(`${API_URL}/api/v1/users/profile?firebaseUid=${user.uid}`)
+      .then(r => r.json())
+      .then(json => { if (json.data?.phoneNumber) setPhoneNumber(json.data.phoneNumber); })
+      .catch(() => {});
+  }, []);
 
   async function handleSave() {
     if (!displayName.trim()) { Alert.alert('Name required', 'Please enter your name.'); return; }
