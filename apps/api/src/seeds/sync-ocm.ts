@@ -39,9 +39,25 @@ function mapChargingSpeed(conn: any): string {
   return 'LEVEL1';
 }
 
-// OCM doesn't carry PHP pricing — store 0 to indicate unknown
-// The app displays "Contact station" for ports with 0 price
-function estimatePrice(_speed: string): number {
+// Parse the first PHP/kWh number from OCM's UsageCost string
+// e.g. "DC: ₱35/kWh. AC: ₱28.50/kWh" → for DCFC returns 35, for others 28.50
+// e.g. "₱28.50/kWh" → 28.50
+// Returns 0 if no price found
+function parsePriceFromUsageCost(usageCost: string | null | undefined, speed: string): number {
+  if (!usageCost) return 0;
+  // Try to find DC price for DCFC ports
+  if (speed === 'DCFC') {
+    const dcMatch = usageCost.match(/DC[^₱]*[₱P]([\d.]+)/i);
+    if (dcMatch) return parseFloat(dcMatch[1]);
+  }
+  // Try to find AC price for non-DCFC ports
+  if (speed !== 'DCFC') {
+    const acMatch = usageCost.match(/AC[^₱]*[₱P]([\d.]+)/i);
+    if (acMatch) return parseFloat(acMatch[1]);
+  }
+  // Fall back to first number found
+  const anyMatch = usageCost.match(/[₱P]([\d.]+)/);
+  if (anyMatch) return parseFloat(anyMatch[1]);
   return 0;
 }
 
@@ -73,7 +89,8 @@ async function syncOcm() {
   const existing = await prisma.$queryRaw<{ description: string }[]>`
     SELECT description FROM stations WHERE description LIKE 'ocm:%'
   `;
-  const existingIds = new Set(existing.map(r => r.description));
+  // Extract just the ocm:ID part (description may be "ocm:123|usagecost text")
+  const existingIds = new Set(existing.map(r => r.description.split('|')[0]));
 
   let created = 0;
   let skipped = 0;
@@ -95,9 +112,10 @@ async function syncOcm() {
       const address = [addr.AddressLine1, addr.AddressLine2].filter(Boolean).join(', ') || addr.Title;
       const city    = addr.Town || addr.StateOrProvince || 'Philippines';
       const province = parseProvince(addr.StateOrProvince, addr.Town);
-      const network  = poi.OperatorInfo?.Title ?? null;
-      const phone    = addr.ContactTelephone1 ?? null;
-      const website  = addr.RelatedURL ?? poi.OperatorInfo?.WebsiteURL ?? null;
+      const network    = poi.OperatorInfo?.Title ?? null;
+      const phone      = addr.ContactTelephone1 ?? null;
+      const website    = addr.RelatedURL ?? poi.OperatorInfo?.WebsiteURL ?? null;
+      const usageCost  = poi.UsageCost ?? null;
 
       const connections: any[] = poi.Connections ?? [];
       const ports: { connector: string; speed: string; kw: number; price: number; number: string }[] = [];
@@ -109,10 +127,14 @@ async function syncOcm() {
         const speed = mapChargingSpeed(conn);
         const kw    = conn.PowerKW ?? (speed === 'DCFC' ? 50 : speed === 'LEVEL2' ? 7.4 : 1.4);
         const qty   = conn.Quantity ?? 1;
+        const price = parsePriceFromUsageCost(usageCost, speed);
         for (let q = 0; q < Math.min(qty, 4); q++) {
-          ports.push({ number: `P${portIndex++}`, connector, speed, kw, price: estimatePrice(speed) });
+          ports.push({ number: `P${portIndex++}`, connector, speed, kw, price });
         }
       }
+
+      // Store OCM ID + usage cost text in description for reference
+      const description = usageCost ? `${ocmKey}|${usageCost}` : ocmKey;
 
       const stationId = generateId();
       await prisma.$executeRaw`
@@ -121,7 +143,7 @@ async function syncOcm() {
           status, amenities, network_name, location,
           phone, website, photos, created_at, updated_at
         ) VALUES (
-          ${stationId}, ${name}, ${ocmKey}, ${address}, ${city}, ${province},
+          ${stationId}, ${name}, ${description}, ${address}, ${city}, ${province},
           'ACTIVE', ARRAY[]::text[], ${network},
           ST_MakePoint(${lng}::float, ${lat}::float)::geography,
           ${phone}, ${website}, ARRAY[]::text[], NOW(), NOW()
