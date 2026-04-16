@@ -2,10 +2,9 @@ import { API_URL } from '../lib/config';
 import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, ActivityIndicator, Text,
-  TouchableOpacity, ScrollView, TextInput, Platform,
+  TouchableOpacity, ScrollView, TextInput,
 } from 'react-native';
-import ClusteredMapView from 'react-native-map-clustering';
-import { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,33 +131,12 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <ClusteredMapView
+      <MapView
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         initialRegion={MANILA_REGION}
         showsUserLocation
-        clusterColor={t.accent}
-        clusterTextColor="#fff"
-        clusterFontFamily="System"
-        radius={60}
-        minPoints={3}
-        renderCluster={(cluster) => {
-          const { id, geometry, onPress, properties } = cluster;
-          const count = properties.point_count;
-          const size = count < 10 ? 38 : count < 50 ? 46 : 54;
-          return (
-            <Marker
-              key={`cluster-${id}`}
-              coordinate={{ latitude: geometry.coordinates[1], longitude: geometry.coordinates[0] }}
-              onPress={onPress}
-            >
-              <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent }]}>
-                <Text style={styles.clusterText}>{count}</Text>
-              </View>
-            </Marker>
-          );
-        }}
       >
         {visibleStations.map(station => (
           <Marker
@@ -178,7 +156,7 @@ export default function MapScreen() {
             }]} />
           </Marker>
         ))}
-      </ClusteredMapView>
+      </MapView>
 
       {/* Filter bar */}
       <View style={[styles.filterBar, { backgroundColor: t.background }]}>
@@ -339,20 +317,6 @@ const styles = StyleSheet.create({
     padding: 12, borderRadius: 8,
   },
   errorText: { color: '#fff', textAlign: 'center' },
-  cluster: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  clusterText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-  },
   markerContainer: {
     width: 30, height: 30, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
