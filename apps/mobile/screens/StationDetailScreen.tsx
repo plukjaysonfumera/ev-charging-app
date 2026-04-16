@@ -358,7 +358,10 @@ export default function StationDetailScreen({ route, navigation }: any) {
                 <Text style={[styles.portDetail, { color: t.textSecondary }]}>
                   {SPEED_LABELS[port.charging_speed] ?? port.charging_speed} · {port.max_kw} kW
                 </Text>
-                <Text style={[styles.portPrice, { color: t.green }]}>₱{port.price_per_kwh} / kWh</Text>
+                {parseFloat(port.price_per_kwh) > 0
+                  ? <Text style={[styles.portPrice, { color: t.green }]}>₱{port.price_per_kwh} / kWh</Text>
+                  : <Text style={[styles.portPrice, { color: t.textTertiary }]}>Price — contact station</Text>
+                }
 
                 {isOccupied && elapsed !== null && (
                   <View style={styles.inUseBox}>
@@ -428,7 +431,8 @@ export default function StationDetailScreen({ route, navigation }: any) {
           {chargeSheet && (() => {
             const kwh = parseFloat(targetKwh) || 0;
             const estMins = kwh > 0 ? Math.round((kwh / chargeSheet.max_kw) * 60) : null;
-            const estCost = kwh > 0 ? (kwh * parseFloat(chargeSheet.price_per_kwh)).toFixed(2) : null;
+            const priceKnown = parseFloat(chargeSheet.price_per_kwh) > 0;
+            const estCost = kwh > 0 && priceKnown ? (kwh * parseFloat(chargeSheet.price_per_kwh)).toFixed(2) : null;
             return (
               <View style={[styles.sheet, { backgroundColor: t.surfaceElevated }]}>
                 <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
@@ -438,7 +442,10 @@ export default function StationDetailScreen({ route, navigation }: any) {
                   <Text style={[styles.sheetPortLabel, { color: t.textSecondary }]}>
                     Port {chargeSheet.port_number} · {CONNECTOR_LABELS[chargeSheet.connector_type] ?? chargeSheet.connector_type} · {chargeSheet.max_kw} kW
                   </Text>
-                  <Text style={[styles.sheetPortPrice, { color: t.green }]}>₱{chargeSheet.price_per_kwh} / kWh</Text>
+                  {parseFloat(chargeSheet.price_per_kwh) > 0
+                    ? <Text style={[styles.sheetPortPrice, { color: t.green }]}>₱{chargeSheet.price_per_kwh} / kWh</Text>
+                    : <Text style={[styles.sheetPortPrice, { color: t.textTertiary }]}>Price — contact station</Text>
+                  }
                 </View>
 
                 <Text style={[styles.sheetLabel, { color: t.textSecondary }]}>Target kWh</Text>

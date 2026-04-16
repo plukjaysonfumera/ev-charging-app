@@ -39,10 +39,10 @@ function mapChargingSpeed(conn: any): string {
   return 'LEVEL1';
 }
 
-function estimatePrice(speed: string): number {
-  if (speed === 'DCFC')   return 16.00;
-  if (speed === 'LEVEL2') return 12.00;
-  return 8.00;
+// OCM doesn't carry PHP pricing — store 0 to indicate unknown
+// The app displays "Contact station" for ports with 0 price
+function estimatePrice(_speed: string): number {
+  return 0;
 }
 
 function parseProvince(stateOrProvince?: string, town?: string): string {
