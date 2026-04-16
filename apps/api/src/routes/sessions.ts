@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 // POST /api/v1/sessions — start a session
 router.post('/', async (req, res) => {
   try {
-    const { firebaseUid, displayName, email, stationId, portId } = req.body;
+    const { firebaseUid, displayName, email, stationId, portId, targetKwh } = req.body;
 
     if (!firebaseUid || !stationId || !portId) {
       return res.status(400).json({ error: 'firebaseUid, stationId, and portId are required' });
@@ -72,6 +72,7 @@ router.post('/', async (req, res) => {
         portId,
         status: 'CHARGING',
         startedAt: new Date(),
+        ...(targetKwh ? { targetKwh: parseFloat(targetKwh) } : {}),
       },
       include: {
         station: { select: { name: true, city: true } },

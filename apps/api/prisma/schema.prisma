@@ -185,6 +185,7 @@ model ChargingSession {
   status          SessionStatus @default(INITIATED)
   startedAt       DateTime?     @map("started_at")
   endedAt         DateTime?     @map("ended_at")
+  targetKwh       Float?        @map("target_kwh")
   energyKwh       Float?        @map("energy_kwh")
   durationMinutes Int?          @map("duration_minutes")
   totalAmount     Decimal?      @map("total_amount") @db.Decimal(10, 2)

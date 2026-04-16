@@ -108,17 +108,35 @@ router.get('/:id', async (req, res) => {
 
     if (!station) return res.status(404).json({ error: 'Station not found' });
 
-    const ports = await prisma.port.findMany({ where: { stationId: id } });
+    // Fetch ports with active session data for OCCUPIED ports
+    const ports = await prisma.$queryRaw<any[]>`
+      SELECT
+        p.id, p.port_number, p.connector_type, p.charging_speed,
+        p.max_kw, p.price_per_kwh, p.currency, p.status,
+        cs.started_at AS session_started_at,
+        cs.target_kwh AS session_target_kwh,
+        cs.id AS session_id
+      FROM ports p
+      LEFT JOIN charging_sessions cs
+        ON cs.port_id = p.id
+        AND cs.status IN ('CHARGING', 'INITIATED')
+      WHERE p.station_id = ${id}
+      ORDER BY p.port_number ASC
+    `;
+
     const serializedPorts = ports.map(p => ({
       id: p.id,
-      port_number: p.portNumber,
-      connector_type: p.connectorType,
-      charging_speed: p.chargingSpeed,
-      max_kw: p.maxKw,
-      price_per_kwh: p.pricePerKwh,
+      port_number: p.port_number,
+      connector_type: p.connector_type,
+      charging_speed: p.charging_speed,
+      max_kw: Number(p.max_kw),
+      price_per_kwh: p.price_per_kwh,
       currency: p.currency,
       status: p.status,
+      session_started_at: p.session_started_at ?? null,
+      session_target_kwh: p.session_target_kwh ? Number(p.session_target_kwh) : null,
     }));
+
     res.json({ data: { ...serializeStation(station), ports: serializedPorts } });
   } catch (error) {
     console.error(error);

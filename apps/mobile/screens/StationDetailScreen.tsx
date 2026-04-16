@@ -1,8 +1,9 @@
 import { API_URL } from '../lib/config';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   ActivityIndicator, TouchableOpacity, Alert, Linking, Platform,
+  Modal, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,6 +30,34 @@ interface Port {
   id: string; port_number: string; connector_type: string;
   charging_speed: string; max_kw: number; price_per_kwh: string;
   currency: string; status: string;
+  session_started_at?: string | null;
+  session_target_kwh?: number | null;
+}
+
+const AVG_SESSION_MINUTES: Record<string, number> = {
+  DCFC: 40, LEVEL2: 120, LEVEL1: 480,
+};
+
+function minutesElapsed(startedAt: string): number {
+  return Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000);
+}
+
+function estimatedWait(port: Port): string {
+  if (!port.session_started_at) return '';
+  const elapsed = minutesElapsed(port.session_started_at);
+  // Use targetKwh for precise estimate; fall back to average by speed
+  const totalMinutes = port.session_target_kwh
+    ? Math.round((port.session_target_kwh / port.max_kw) * 60)
+    : AVG_SESSION_MINUTES[port.charging_speed] ?? 60;
+  const remaining = Math.max(0, totalMinutes - elapsed);
+  if (remaining === 0) return 'Finishing soon';
+  if (remaining < 60) return `~${remaining}m wait`;
+  return `~${Math.floor(remaining / 60)}h ${remaining % 60}m wait`;
+}
+
+function formatMinutes(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
 interface Station {
@@ -104,17 +133,39 @@ export default function StationDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingPort, setStartingPort] = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [chargeSheet, setChargeSheet] = useState<Port | null>(null);
+  const [targetKwh, setTargetKwh] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { isFavorite, toggle } = useFavorites();
 
-  async function startCharging(port: Port) {
+  function openChargeSheet(port: Port) {
     const user = auth.currentUser;
     if (!user) { Alert.alert('Sign in required'); return; }
+    setTargetKwh('');
+    setChargeSheet(port);
+  }
+
+  async function confirmStartCharging() {
+    const port = chargeSheet;
+    const user = auth.currentUser;
+    if (!port || !user) return;
+    const kwh = parseFloat(targetKwh);
+    if (!targetKwh || isNaN(kwh) || kwh <= 0) {
+      Alert.alert('Enter kWh', 'Please enter how many kWh you want to charge.');
+      return;
+    }
+    setChargeSheet(null);
     setStartingPort(port.id);
     try {
       const res = await fetch(`${API_URL}/api/v1/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firebaseUid: user.uid, displayName: user.displayName, email: user.email, stationId, portId: port.id }),
+        body: JSON.stringify({
+          firebaseUid: user.uid, displayName: user.displayName,
+          email: user.email, stationId, portId: port.id,
+          targetKwh: kwh,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -126,12 +177,24 @@ export default function StationDetailScreen({ route, navigation }: any) {
     }
   }
 
+  async function loadStation() {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/stations/${stationId}`);
+      const json = await res.json();
+      setStation(json.data);
+      setLastRefreshed(new Date());
+    } catch {
+      setError('Could not load station details');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/stations/${stationId}`)
-      .then(res => res.json())
-      .then(json => setStation(json.data))
-      .catch(() => setError('Could not load station details'))
-      .finally(() => setLoading(false));
+    loadStation();
+    // Poll port status every 30 seconds
+    pollRef.current = setInterval(loadStation, 30_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [stationId]);
 
   // Bookmark button in header
@@ -264,38 +327,63 @@ export default function StationDetailScreen({ route, navigation }: any) {
       )}
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: t.text }]}>Charging Ports ({(station.ports ?? []).length})</Text>
+        <View style={styles.portsHeader}>
+          <Text style={[styles.sectionTitle, { color: t.text }]}>Charging Ports ({(station.ports ?? []).length})</Text>
+          <TouchableOpacity onPress={loadStation} style={styles.refreshRow}>
+            <View style={styles.liveDot} />
+            <Text style={[styles.liveText, { color: t.textTertiary }]}>Live</Text>
+          </TouchableOpacity>
+        </View>
         {(station.ports ?? []).length === 0 ? (
           <Text style={[styles.noData, { color: t.textTertiary }]}>No ports listed yet.</Text>
         ) : (
-          (station.ports ?? []).map(port => (
-            <View key={port.id} style={[styles.portCard, { borderColor: t.border }]}>
-              <View style={styles.portHeader}>
-                <Text style={[styles.portNumber, { color: t.text }]}>Port {port.port_number}</Text>
-                <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[port.status] ?? '#aaa' }]} />
-                <Text style={[styles.portStatus, { color: STATUS_COLORS[port.status] ?? '#aaa' }]}>{port.status}</Text>
+          (station.ports ?? []).map(port => {
+            const statusColor = STATUS_COLORS[port.status] ?? '#aaa';
+            const isOccupied = port.status === 'OCCUPIED';
+            const elapsed = isOccupied && port.session_started_at ? minutesElapsed(port.session_started_at) : null;
+            const wait = isOccupied && port.session_started_at ? estimatedWait(port) : null;
+            return (
+              <View key={port.id} style={[styles.portCard, { borderColor: port.status === 'AVAILABLE' ? t.green : statusColor + '55' }]}>
+                <View style={styles.portHeader}>
+                  <Text style={[styles.portNumber, { color: t.text }]}>Port {port.port_number}</Text>
+                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.portStatus, { color: statusColor }]}>
+                    {isOccupied ? 'In Use' : port.status.charAt(0) + port.status.slice(1).toLowerCase()}
+                  </Text>
+                </View>
+
+                <Text style={[styles.portDetail, { color: t.textSecondary }]}>
+                  {CONNECTOR_LABELS[port.connector_type] ?? port.connector_type}
+                </Text>
+                <Text style={[styles.portDetail, { color: t.textSecondary }]}>
+                  {SPEED_LABELS[port.charging_speed] ?? port.charging_speed} · {port.max_kw} kW
+                </Text>
+                <Text style={[styles.portPrice, { color: t.green }]}>₱{port.price_per_kwh} / kWh</Text>
+
+                {isOccupied && elapsed !== null && (
+                  <View style={styles.inUseBox}>
+                    <Ionicons name="time-outline" size={14} color="#e07b39" />
+                    <Text style={styles.inUseText}>
+                      Charging for {elapsed}m{wait ? ` · ${wait}` : ''}
+                    </Text>
+                  </View>
+                )}
+
+                {port.status === 'AVAILABLE' && (
+                  <TouchableOpacity
+                    style={[styles.startButton, { backgroundColor: t.green }]}
+                    onPress={() => openChargeSheet(port)}
+                    disabled={startingPort === port.id}
+                  >
+                    {startingPort === port.id
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <><Ionicons name="flash" size={15} color="#fff" /><Text style={styles.startButtonText}>Start Charging</Text></>
+                    }
+                  </TouchableOpacity>
+                )}
               </View>
-              <Text style={[styles.portDetail, { color: t.textSecondary }]}>
-                {CONNECTOR_LABELS[port.connector_type] ?? port.connector_type}
-              </Text>
-              <Text style={[styles.portDetail, { color: t.textSecondary }]}>
-                {SPEED_LABELS[port.charging_speed] ?? port.charging_speed} · {port.max_kw} kW
-              </Text>
-              <Text style={[styles.portPrice, { color: t.green }]}>₱{port.price_per_kwh} / kWh</Text>
-              {port.status === 'AVAILABLE' && (
-                <TouchableOpacity
-                  style={[styles.startButton, { backgroundColor: t.green }]}
-                  onPress={() => startCharging(port)}
-                  disabled={startingPort === port.id}
-                >
-                  {startingPort === port.id
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Ionicons name="flash" size={15} color="#fff" /><Text style={styles.startButtonText}>Start Charging</Text></>
-                  }
-                </TouchableOpacity>
-              )}
-            </View>
-          ))
+            );
+          })
         )}
       </View>
 
@@ -332,6 +420,78 @@ export default function StationDetailScreen({ route, navigation }: any) {
           ))
         )}
       </View>
+
+      {/* Pre-charge confirmation sheet */}
+      <Modal visible={!!chargeSheet} transparent animationType="slide" onRequestClose={() => setChargeSheet(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={() => setChargeSheet(null)} />
+          {chargeSheet && (() => {
+            const kwh = parseFloat(targetKwh) || 0;
+            const estMins = kwh > 0 ? Math.round((kwh / chargeSheet.max_kw) * 60) : null;
+            const estCost = kwh > 0 ? (kwh * parseFloat(chargeSheet.price_per_kwh)).toFixed(2) : null;
+            return (
+              <View style={[styles.sheet, { backgroundColor: t.surfaceElevated }]}>
+                <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+                <Text style={[styles.sheetTitle, { color: t.text }]}>How much do you want to charge?</Text>
+
+                <View style={[styles.sheetPortInfo, { backgroundColor: t.surface, borderColor: t.border }]}>
+                  <Text style={[styles.sheetPortLabel, { color: t.textSecondary }]}>
+                    Port {chargeSheet.port_number} · {CONNECTOR_LABELS[chargeSheet.connector_type] ?? chargeSheet.connector_type} · {chargeSheet.max_kw} kW
+                  </Text>
+                  <Text style={[styles.sheetPortPrice, { color: t.green }]}>₱{chargeSheet.price_per_kwh} / kWh</Text>
+                </View>
+
+                <Text style={[styles.sheetLabel, { color: t.textSecondary }]}>Target kWh</Text>
+                <View style={[styles.kwhInputRow, { borderColor: t.border, backgroundColor: t.surface }]}>
+                  <TextInput
+                    style={[styles.kwhInput, { color: t.text }]}
+                    value={targetKwh}
+                    onChangeText={setTargetKwh}
+                    placeholder="e.g. 30"
+                    placeholderTextColor={t.placeholder}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                  />
+                  <Text style={[styles.kwhUnit, { color: t.textTertiary }]}>kWh</Text>
+                </View>
+
+                {estMins !== null && (
+                  <View style={[styles.sheetEstRow, { backgroundColor: t.surface, borderColor: t.border }]}>
+                    <View style={styles.sheetEst}>
+                      <Ionicons name="time-outline" size={16} color={t.green} />
+                      <View>
+                        <Text style={[styles.sheetEstValue, { color: t.text }]}>{formatMinutes(estMins)}</Text>
+                        <Text style={[styles.sheetEstLabel, { color: t.textTertiary }]}>Est. time</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.sheetEstDivider, { backgroundColor: t.border }]} />
+                    <View style={styles.sheetEst}>
+                      <Ionicons name="card-outline" size={16} color={t.green} />
+                      <View>
+                        <Text style={[styles.sheetEstValue, { color: t.text }]}>₱{estCost}</Text>
+                        <Text style={[styles.sheetEstLabel, { color: t.textTertiary }]}>Est. cost</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.sheetConfirm, { backgroundColor: t.green, opacity: kwh > 0 ? 1 : 0.5 }]}
+                  onPress={confirmStartCharging}
+                  disabled={kwh <= 0}
+                >
+                  <Ionicons name="flash" size={16} color="#fff" />
+                  <Text style={styles.sheetConfirmText}>Start Charging</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => setChargeSheet(null)} style={styles.sheetCancel}>
+                  <Text style={[styles.sheetCancelText, { color: t.textTertiary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -374,6 +534,33 @@ const styles = StyleSheet.create({
   reviewStars: { flexDirection: 'row' },
   reviewComment: { fontSize: 14, marginBottom: 6, lineHeight: 20 },
   reviewDate: { fontSize: 12 },
+  portsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  refreshRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22C55E' },
+  liveText: { fontSize: 12 },
+  inUseBox: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#e07b3918', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  inUseText: { fontSize: 13, color: '#e07b39', fontWeight: '600' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 16 },
+  sheetPortInfo: { borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sheetPortLabel: { fontSize: 13 },
+  sheetPortPrice: { fontSize: 13, fontWeight: '700' },
+  sheetLabel: { fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  kwhInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, marginBottom: 16 },
+  kwhInput: { flex: 1, fontSize: 28, fontWeight: '700', paddingVertical: 12 },
+  kwhUnit: { fontSize: 16, fontWeight: '600' },
+  sheetEstRow: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 16, marginBottom: 20 },
+  sheetEst: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sheetEstDivider: { width: 1, marginHorizontal: 8 },
+  sheetEstValue: { fontSize: 16, fontWeight: '700' },
+  sheetEstLabel: { fontSize: 11, marginTop: 2 },
+  sheetConfirm: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14, marginBottom: 12 },
+  sheetConfirmText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  sheetCancel: { alignItems: 'center', padding: 8 },
+  sheetCancelText: { fontSize: 15 },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   infoIcon: { marginRight: 8 },
   infoLink: { fontSize: 14, textDecorationLine: 'underline', flex: 1 },
