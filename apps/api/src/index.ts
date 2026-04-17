@@ -8,6 +8,7 @@ import paymentsRouter from './routes/payments';
 import usersRouter from './routes/users';
 import vehiclesRouter from './routes/vehicles';
 import adminRouter from './routes/admin';
+import carImagesRouter from './routes/car-images';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -48,6 +49,7 @@ app.get('/payment/return', (req, res) => {
 });
 
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/car-images', carImagesRouter);
 app.use('/api/v1/stations', stationsRouter);
 app.use('/api/v1/reviews', reviewsRouter);
 app.use('/api/v1/sessions', sessionsRouter);

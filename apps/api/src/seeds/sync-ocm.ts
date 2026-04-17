@@ -10,20 +10,23 @@ import { prisma } from '../lib/prisma';
 const OCM_API_KEY = process.env.OCM_API_KEY || '';
 
 const CONNECTOR_MAP: Record<number, string> = {
-  1:    'TYPE1',
-  2:    'CHADEMO',
-  3:    'TYPE2',
-  25:   'TYPE2',
-  26:   'GBACD',
-  27:   'CCS2',
-  30:   'GBAC',
-  32:   'TESLA_S',
-  33:   'CCS1',
-  36:   'TYPE2',
-  1036: 'TESLA_S',
-  1037: 'TESLA_S',
-  1038: 'TYPE2',
-  1039: 'NACS',
+  1:    'TYPE1',     // J1772 Type 1 AC
+  2:    'CHADEMO',   // CHAdeMO DC
+  3:    'TYPE2',     // IEC 62196 Type 2 AC
+  25:   'TYPE2',     // IEC 62196 Type 2 (Socket Only)
+  26:   'CCS2',      // IEC 62196 Type 2 CCS (Combo 2) DC
+  27:   'TESLA_S',   // Tesla Roadster (legacy)
+  28:   'GBAC',      // GB/T AC (China standard)
+  29:   'GBACD',     // GB/T DC (China standard)
+  30:   'TESLA_S',   // Tesla Model S/X
+  32:   'TESLA_S',   // Tesla Model S/X (non-CHAdeMO)
+  33:   'CCS2',      // CCS (Type 2) / Combo 2 DC — confirmed by PH data (60–120 kW)
+  36:   'TYPE2',     // IEC 62196 Type 2 (with cable)
+  1036: 'TYPE2',     // Type 2 (Tethered Connector) — most common in PH (7–22 kW)
+  1037: 'TYPE2',     // Type 2 variant
+  1038: 'TYPE2',     // Type 2 variant
+  1039: 'GBAC',      // GB-T AC — GB/T 20234.2 (Tethered) — confirmed by PH data
+  1040: 'GBACD',     // GB-T DC — GB/T 20234.3
 };
 
 function mapConnector(typeId: number | undefined): string | null {

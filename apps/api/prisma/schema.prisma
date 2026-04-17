@@ -206,3 +206,17 @@ model ChargingSession {
   @@index([status])
   @@map("charging_sessions")
 }
+
+model CarImage {
+  id        String   @id @default(cuid())
+  make      String
+  model     String
+  imageUrl  String   @map("image_url")
+  source    String   @default("manual") // "manual" | "cloudinary"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([make, model])
+  @@index([make])
+  @@map("car_images")
+}
