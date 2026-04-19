@@ -13,7 +13,13 @@ import { useCallback } from 'react';
 
 
 
-const CONNECTOR_FILTERS = ['All', 'CCS2', 'TYPE2', 'CHADEMO', 'NACS'];
+// Preferred display order — only shown if at least one station has that type
+const CONNECTOR_ORDER = ['CCS2', 'TYPE2', 'CHADEMO', 'GBAC', 'GBACD', 'NACS', 'CCS1', 'TYPE1', 'TESLA_S'];
+const CONNECTOR_LABELS: Record<string, string> = {
+  CCS2: 'CCS2', TYPE2: 'Type 2', CHADEMO: 'CHAdeMO',
+  GBAC: 'GB/T AC', GBACD: 'GB/T DC', NACS: 'NACS',
+  CCS1: 'CCS1', TYPE1: 'Type 1', TESLA_S: 'Tesla',
+};
 const AVAILABILITY_FILTERS = ['All', 'Available'];
 
 interface Station {
@@ -114,6 +120,12 @@ export default function StationsScreen() {
     setFiltered(result);
   }
 
+  // Build connector filter list from actual data — only types that exist
+  const availableConnectorTypes = CONNECTOR_ORDER.filter(ct =>
+    stations.some(s => s.connector_types?.includes(ct))
+  );
+  const connectorFilters = ['All', ...availableConnectorTypes];
+
   const activeFilterCount =
     (connectorFilter !== 'All' ? 1 : 0) +
     (availabilityFilter !== 'All' ? 1 : 0);
@@ -130,51 +142,90 @@ export default function StationsScreen() {
     ));
   }
 
+  // Connector type color map for pills
+  const CONNECTOR_COLORS: Record<string, { bg: string; text: string }> = {
+    CCS2:    { bg: '#EFF6FF', text: '#1D4ED8' },
+    CCS1:    { bg: '#EFF6FF', text: '#1D4ED8' },
+    CHADEMO: { bg: '#FFF7ED', text: '#C2410C' },
+    TYPE2:   { bg: '#F0FDF4', text: '#15803D' },
+    TYPE1:   { bg: '#F0FDF4', text: '#15803D' },
+    NACS:    { bg: '#FAF5FF', text: '#7C3AED' },
+    GBAC:    { bg: '#FEFCE8', text: '#A16207' },
+    GBACD:   { bg: '#FEFCE8', text: '#A16207' },
+    TESLA_S: { bg: '#FFF1F2', text: '#BE123C' },
+  };
+
   function renderItem({ item }: { item: Station }) {
+    const isAvailable = item.has_available;
+    const connColor = isAvailable ? t.accent : '#888';
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: t.surfaceElevated }]}
+        style={[
+          styles.card,
+          { backgroundColor: t.surfaceElevated },
+        ]}
         onPress={() => navigation.navigate('StationDetail', { stationId: item.id })}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.stationName, { color: t.text }]} numberOfLines={1}>{item.name}</Text>
-          <View style={styles.cardBadges}>
-            {item.has_available && (
-              <View style={[styles.availBadge, { backgroundColor: '#D1FAE5' }]}>
-                <View style={styles.availDot} />
-                <Text style={[styles.availText, { color: '#065F46' }]}>Available</Text>
-              </View>
-            )}
-            {item.network_name && (
-              <View style={[styles.networkBadge, { backgroundColor: t.badge }]}>
-                <Text style={[styles.networkText, { color: t.badgeText }]}>{item.network_name}</Text>
-              </View>
+        {/* Left availability accent bar */}
+        <View style={[styles.accentBar, { backgroundColor: connColor }]} />
+
+        <View style={styles.cardInner}>
+          {/* Top row */}
+          <View style={styles.cardTop}>
+            <View style={[styles.stationIconBox, { backgroundColor: isAvailable ? t.badge : t.surface }]}>
+              <Ionicons name="flash" size={18} color={connColor} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.stationName, { color: t.text }]} numberOfLines={1}>{item.name}</Text>
+              <Text style={[styles.address, { color: t.textTertiary }]} numberOfLines={1}>
+                {item.city}{item.network_name ? ` · ${item.network_name}` : ''}
+              </Text>
+            </View>
+            <View style={[
+              styles.availPill,
+              { backgroundColor: isAvailable ? '#DCFCE7' : t.surface, borderColor: isAvailable ? '#16A34A' : t.border },
+            ]}>
+              <View style={[styles.availDot, { backgroundColor: isAvailable ? '#16A34A' : '#888' }]} />
+              <Text style={[styles.availText, { color: isAvailable ? '#15803D' : '#888' }]}>
+                {isAvailable ? 'Available' : 'Occupied'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Connector type pills */}
+          {Array.isArray(item.connector_types) && item.connector_types.length > 0 && (
+            <View style={styles.connectorRow}>
+              {item.connector_types.slice(0, 5).map(ct => {
+                const c = CONNECTOR_COLORS[ct] ?? { bg: t.surface, text: t.textSecondary };
+                return (
+                  <View key={ct} style={[styles.connectorPill, { backgroundColor: c.bg }]}>
+                    <Ionicons name="flash" size={9} color={c.text} />
+                    <Text style={[styles.connectorPillText, { color: c.text }]}>{ct.replace('_', ' ')}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Footer */}
+          <View style={styles.cardFooter}>
+            <View style={styles.stars}>{renderStars(item.average_rating)}</View>
+            <Text style={[styles.reviewCount, { color: t.textTertiary }]}>
+              {item.average_rating > 0 ? `${item.average_rating.toFixed(1)} ` : ''}({item.review_count})
+            </Text>
+            <View style={[styles.dot, { backgroundColor: t.border }]} />
+            <Ionicons name="flash-outline" size={12} color={t.accent} />
+            <Text style={[styles.portCount, { color: t.accent }]}>
+              {item.port_count} port{item.port_count !== 1 ? 's' : ''}
+            </Text>
+            {isFavorite(item.id) && (
+              <>
+                <View style={[styles.dot, { backgroundColor: t.border }]} />
+                <Ionicons name="bookmark" size={12} color={t.accent} />
+              </>
             )}
           </View>
-        </View>
-
-        <Text style={[styles.address, { color: t.textTertiary }]} numberOfLines={1}>
-          <Ionicons name="location-outline" size={12} color={t.textTertiary} /> {item.address}, {item.city}
-        </Text>
-
-        {/* Connector type pills */}
-        {Array.isArray(item.connector_types) && item.connector_types.length > 0 && (
-          <View style={styles.connectorRow}>
-            {item.connector_types.map(ct => (
-              <View key={ct} style={[styles.connectorPill, { backgroundColor: t.surface, borderColor: t.border }]}>
-                <Text style={[styles.connectorPillText, { color: t.textSecondary }]}>{ct}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={styles.cardFooter}>
-          <View style={styles.stars}>{renderStars(item.average_rating)}</View>
-          <Text style={[styles.reviewCount, { color: t.textTertiary }]}>({item.review_count})</Text>
-          <View style={[styles.dot, { backgroundColor: t.border }]} />
-          <Ionicons name="flash-outline" size={13} color={t.green} />
-          <Text style={[styles.portCount, { color: t.green }]}>{item.port_count} port{item.port_count !== 1 ? 's' : ''}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -230,12 +281,13 @@ export default function StationsScreen() {
         <Text style={[styles.filterLabel, { color: t.textTertiary }]}>Connector</Text>
         <FlatList
           horizontal
-          data={CONNECTOR_FILTERS}
+          data={connectorFilters}
           keyExtractor={i => i}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
           renderItem={({ item }) => {
             const active = connectorFilter === item;
+            const label = item === 'All' ? 'All' : (CONNECTOR_LABELS[item] ?? item);
             return (
               <TouchableOpacity
                 style={[
@@ -246,7 +298,7 @@ export default function StationsScreen() {
                 onPress={() => setConnectorFilter(item)}
               >
                 <Text style={[styles.filterText, { color: t.textSecondary }, active && { color: '#fff', fontWeight: '600' }]}>
-                  {item}
+                  {label}
                 </Text>
               </TouchableOpacity>
             );
@@ -355,27 +407,38 @@ const styles = StyleSheet.create({
   clearBtnText: { fontSize: 12, fontWeight: '600' },
   list: { padding: 12, paddingTop: 4 },
   card: {
-    borderRadius: 12, padding: 16, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    borderRadius: 14, marginBottom: 10, overflow: 'hidden',
+    flexDirection: 'row',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
-  stationName: { flex: 1, fontSize: 15, fontWeight: '700', marginRight: 8 },
-  cardBadges: { flexDirection: 'row', gap: 6, flexShrink: 0 },
-  availBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  availDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#16A34A' },
+  accentBar: { width: 4 },
+  cardInner: { flex: 1, padding: 14 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  stationIconBox: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  stationName: { fontSize: 14, fontWeight: '700' },
+  address: { fontSize: 12, marginTop: 1 },
+  availPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1,
+  },
+  availDot: { width: 6, height: 6, borderRadius: 3 },
   availText: { fontSize: 10, fontWeight: '700' },
-  networkBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  networkText: { fontSize: 11, fontWeight: '600' },
-  address: { fontSize: 13, marginBottom: 8 },
-  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  connectorPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
-  connectorPillText: { fontSize: 11, fontWeight: '600' },
+  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
+  connectorPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
+  },
+  connectorPillText: { fontSize: 10, fontWeight: '700' },
   cardFooter: { flexDirection: 'row', alignItems: 'center' },
   stars: { flexDirection: 'row' },
   reviewCount: { fontSize: 12, marginLeft: 4 },
   dot: { width: 3, height: 3, borderRadius: 2, marginHorizontal: 8 },
-  portCount: { fontSize: 13, marginLeft: 2, fontWeight: '600' },
+  portCount: { fontSize: 12, marginLeft: 2, fontWeight: '600' },
   emptyText: { fontSize: 15, marginTop: 12 },
   emptySubtext: { fontSize: 13, marginTop: 6, textAlign: 'center', paddingHorizontal: 32 },
   toggleRow: { flexDirection: 'row', borderBottomWidth: 1 },

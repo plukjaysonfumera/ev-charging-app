@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   ActivityIndicator, TouchableOpacity, Alert, Linking, Platform,
-  Modal, TextInput, KeyboardAvoidingView,
+  Modal, TextInput, KeyboardAvoidingView, Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -197,24 +197,50 @@ export default function StationDetailScreen({ route, navigation }: any) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [stationId]);
 
-  // Bookmark button in header
+  async function handleShare() {
+    if (!station) return;
+    try {
+      const availablePorts = (station.ports ?? []).filter(p => p.status === 'AVAILABLE').length;
+      const totalPorts = (station.ports ?? []).length;
+      const connectors = [...new Set((station.ports ?? []).map(p => p.connector_type))].join(', ');
+      await Share.share({
+        title: station.name,
+        message:
+          `⚡ ${station.name}\n` +
+          `📍 ${station.address}, ${station.city}\n` +
+          `🔌 ${availablePorts}/${totalPorts} ports available · ${connectors}\n\n` +
+          `Find it on PHEV PH — the EV charging app for the Philippines.`,
+      });
+    } catch (_) {}
+  }
+
+  // Bookmark + Share buttons in header
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          onPress={() => toggle(stationId)}
-          style={{ marginRight: 4, padding: 8 }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name={isFavorite(stationId) ? 'bookmark' : 'bookmark-outline'}
-            size={22}
-            color={isFavorite(stationId) ? t.accent : t.headerText}
-          />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+          <TouchableOpacity
+            onPress={handleShare}
+            style={{ padding: 8 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="share-outline" size={22} color={t.headerText} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => toggle(stationId)}
+            style={{ padding: 8 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={isFavorite(stationId) ? 'bookmark' : 'bookmark-outline'}
+              size={22}
+              color={isFavorite(stationId) ? t.accent : t.headerText}
+            />
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [stationId, isFavorite(stationId)]);
+  }, [stationId, isFavorite(stationId), station]);
 
   useFocusEffect(useCallback(() => {
     fetch(`${API_URL}/api/v1/reviews?stationId=${stationId}`)

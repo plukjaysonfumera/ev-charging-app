@@ -2,14 +2,20 @@ import { API_URL } from '../lib/config';
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Alert,
+  ScrollView, ActivityIndicator, Alert, Dimensions,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { signOut } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme';
+import CarImage from '../components/CarImage';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_WIDTH   = SCREEN_WIDTH - 16 * 2;
+const CARD_HEIGHT  = Math.round(CARD_WIDTH * 0.62);  // cinematic 16:10 ratio
 
 interface Stats {
   sessions: number;
@@ -17,6 +23,16 @@ interface Stats {
   totalSpent: number;
   totalMinutes: number;
 }
+
+// Achievement badge definitions
+const BADGES: { id: string; icon: string; label: string; desc: string; color: string; threshold: (s: Stats) => boolean }[] = [
+  { id: 'first',    icon: '⚡', label: 'First Charge',  desc: 'Complete your first session',  color: '#F59E0B', threshold: s => s.sessions >= 1 },
+  { id: 'ten',      icon: '🔋', label: '10 Sessions',   desc: '10 charging sessions done',     color: '#3B82F6', threshold: s => s.sessions >= 10 },
+  { id: 'kwh50',    icon: '🌱', label: '50 kWh',        desc: '50 kWh of clean energy added',  color: '#22C55E', threshold: s => s.totalKwh >= 50 },
+  { id: 'kwh100',   icon: '💚', label: '100 kWh',       desc: 'EV champion — 100 kWh!',        color: '#16A34A', threshold: s => s.totalKwh >= 100 },
+  { id: 'spender',  icon: '💳', label: 'Power Spender', desc: 'Spent over ₱1,000 charging',   color: '#8B5CF6', threshold: s => s.totalSpent >= 1000 },
+  { id: 'road',     icon: '🛣️', label: 'Road Warrior',  desc: 'More than 5 hours of charging', color: '#F97316', threshold: s => s.totalMinutes >= 300 },
+];
 
 
 
@@ -149,6 +165,35 @@ export default function ProfileScreen() {
         </View>
       )}
 
+      {/* Achievement Badges */}
+      {stats && (
+        <View style={[styles.badgesCard, { backgroundColor: t.surfaceElevated }]}>
+          <Text style={[styles.badgesTitle, { color: t.text }]}>Achievements</Text>
+          <View style={styles.badgesGrid}>
+            {BADGES.map(b => {
+              const earned = b.threshold(stats);
+              return (
+                <View
+                  key={b.id}
+                  style={[
+                    styles.badge,
+                    { backgroundColor: earned ? b.color + '18' : t.surface, borderColor: earned ? b.color : t.border },
+                  ]}
+                >
+                  <Text style={[styles.badgeIcon, { opacity: earned ? 1 : 0.3 }]}>{b.icon}</Text>
+                  <Text style={[styles.badgeLabel, { color: earned ? t.text : t.textTertiary }]}>{b.label}</Text>
+                  {!earned && (
+                    <View style={[styles.badgeLock, { backgroundColor: t.border }]}>
+                      <Text style={{ fontSize: 8, color: t.textTertiary }}>🔒</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
       {/* My Vehicles */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -170,53 +215,85 @@ export default function ProfileScreen() {
             <Text style={[styles.emptyText, { color: t.textTertiary }]}>Add your EV to get started</Text>
           </TouchableOpacity>
         ) : (
-          vehicles.map(v => (
-            <View
-              key={v.id}
-              style={[
-                styles.vehicleCard,
-                { backgroundColor: t.surfaceElevated, borderColor: t.border },
-                v.isDefault && { borderColor: t.green, backgroundColor: t.greenTint },
-              ]}
-            >
-              <View style={[styles.vehicleIcon, { backgroundColor: t.badge }]}>
-                <Ionicons name="car" size={24} color={v.isDefault ? '#fff' : t.green} style={v.isDefault ? { tintColor: '#fff' } : undefined} />
-              </View>
-              <View style={styles.vehicleInfo}>
-                <View style={styles.vehicleNameRow}>
-                  <Text style={[styles.vehicleName, { color: t.text }]}>{v.year} {v.make} {v.model}</Text>
-                  {v.isDefault && (
-                    <View style={[styles.defaultBadge, { backgroundColor: t.green }]}>
-                      <Text style={styles.defaultText}>Default</Text>
-                    </View>
+          <View style={styles.vehicleList}>
+            {vehicles.map(v => (
+              <View key={v.id} style={[styles.vehicleCard, v.isDefault && { borderColor: t.accent }]}>
+
+                {/* ── Full-bleed car image ── */}
+                <CarImage
+                  make={v.make}
+                  model={v.model}
+                  width={CARD_WIDTH}
+                  height={CARD_HEIGHT}
+                />
+
+                {/* ── Gradient overlay — transparent → black from 35% down ── */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
+                  locations={[0.3, 0.6, 1]}
+                  style={StyleSheet.absoluteFillObject}
+                  pointerEvents="none"
+                />
+
+                {/* ── Top-right: action buttons ── */}
+                <View style={styles.cardTopActions}>
+                  {!v.isDefault && (
+                    <TouchableOpacity
+                      onPress={() => setDefault(v.id)}
+                      style={styles.glassBtn}
+                    >
+                      <Ionicons name="star-outline" size={15} color="#fff" />
+                    </TouchableOpacity>
                   )}
-                </View>
-                <Text style={[styles.vehicleDetail, { color: t.textSecondary }]}>
-                  {v.batteryKwh} kWh{v.licensePlate ? ` · 🪪 ${v.licensePlate}` : ''}
-                </Text>
-                <View style={styles.connectorRow}>
-                  {(v.connectors ?? []).length > 0 ? (v.connectors ?? []).map(c => (
-                    <View key={c} style={[styles.connectorChip, { backgroundColor: t.badge }]}>
-                      <Ionicons name="flash" size={10} color={t.accent} />
-                      <Text style={[styles.connectorChipText, { color: t.accent }]}>{CONNECTOR_LABELS[c] ?? c}</Text>
-                    </View>
-                  )) : (
-                    <Text style={[styles.vehicleDetail, { color: t.textTertiary }]}>No connector selected</Text>
-                  )}
-                </View>
-              </View>
-              <View style={styles.vehicleActions}>
-                {!v.isDefault && (
-                  <TouchableOpacity onPress={() => setDefault(v.id)} style={styles.iconBtn}>
-                    <Ionicons name="star-outline" size={18} color={t.textSecondary} />
+                  <TouchableOpacity
+                    onPress={() => deleteVehicle(v.id)}
+                    style={[styles.glassBtn, styles.glassBtnDanger]}
+                  >
+                    <Ionicons name="trash-outline" size={15} color="#fff" />
                   </TouchableOpacity>
+                </View>
+
+                {/* ── Top-left: Default badge ── */}
+                {v.isDefault && (
+                  <View style={[styles.defaultBadge, { backgroundColor: t.accent }]}>
+                    <Ionicons name="star" size={10} color="#fff" />
+                    <Text style={styles.defaultBadgeText}>Default</Text>
+                  </View>
                 )}
-                <TouchableOpacity onPress={() => deleteVehicle(v.id)} style={styles.iconBtn}>
-                  <Ionicons name="trash-outline" size={18} color={t.destructive} />
-                </TouchableOpacity>
+
+                {/* ── Bottom overlay: car info ── */}
+                <View style={styles.cardOverlayInfo}>
+                  <Text style={styles.overlayMake}>{v.year} · {v.make.toUpperCase()}</Text>
+                  <Text style={styles.overlayModel} numberOfLines={1}>{v.model}</Text>
+
+                  <View style={styles.overlayMeta}>
+                    <View style={styles.overlayMetaItem}>
+                      <Ionicons name="battery-charging-outline" size={13} color="rgba(255,255,255,0.75)" />
+                      <Text style={styles.overlayMetaText}>{v.batteryKwh} kWh</Text>
+                    </View>
+                    {v.licensePlate ? (
+                      <View style={styles.overlayMetaItem}>
+                        <Ionicons name="card-outline" size={13} color="rgba(255,255,255,0.75)" />
+                        <Text style={styles.overlayMetaText}>{v.licensePlate}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.connectorRow}>
+                    {(v.connectors ?? []).slice(0, 5).map(c => (
+                      <View key={c} style={styles.overlayConnectorChip}>
+                        <Ionicons name="flash" size={9} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.overlayConnectorText}>
+                          {CONNECTOR_LABELS[c] ?? c}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
               </View>
-            </View>
-          ))
+            ))}
+          </View>
         )}
       </View>
 
@@ -274,19 +351,75 @@ const styles = StyleSheet.create({
   addButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   emptyVehicle: { borderRadius: 12, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1.5, borderStyle: 'dashed' },
   emptyText: { fontSize: 14 },
-  vehicleCard: { borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 8, borderWidth: 1.5 },
-  vehicleIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  vehicleInfo: { flex: 1 },
-  vehicleNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  vehicleName: { fontSize: 14, fontWeight: '700' },
-  defaultBadge: { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
-  defaultText: { fontSize: 10, color: '#fff', fontWeight: '700' },
-  vehicleDetail: { fontSize: 12, marginTop: 2 },
-  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
-  connectorChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  connectorChipText: { fontSize: 10, fontWeight: '700' },
-  vehicleActions: { flexDirection: 'row', gap: 8 },
-  iconBtn: { padding: 6 },
+
+  vehicleList: { gap: 16 },
+  vehicleCard: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+
+  // Top-right glass action buttons
+  cardTopActions: {
+    position: 'absolute', top: 12, right: 12,
+    flexDirection: 'row', gap: 8,
+  },
+  glassBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+  },
+  glassBtnDanger: {
+    backgroundColor: 'rgba(220,38,38,0.4)',
+    borderColor: 'rgba(255,100,100,0.3)',
+  },
+
+  // Top-left default badge
+  defaultBadge: {
+    position: 'absolute', top: 12, left: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  defaultBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+
+  // Bottom overlay content
+  cardOverlayInfo: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 16,
+  },
+  overlayMake: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 11, fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  overlayModel: {
+    color: '#FFFFFF',
+    fontSize: 22, fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  overlayMeta: { flexDirection: 'row', gap: 14, marginBottom: 10 },
+  overlayMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  overlayMetaText: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600' },
+
+  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  overlayConnectorChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+  },
+  overlayConnectorText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   menuItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 16, borderTopLeftRadius: 12, borderTopRightRadius: 12,
@@ -294,6 +427,21 @@ const styles = StyleSheet.create({
   },
   menuItemLast: { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomWidth: 0 },
   menuText: { flex: 1, fontSize: 15 },
+  badgesCard: { borderRadius: 14, padding: 16, marginBottom: 16 },
+  badgesTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
+  badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  badge: {
+    width: '30.5%', borderRadius: 12, padding: 10,
+    alignItems: 'center', gap: 4, borderWidth: 1.5,
+    position: 'relative',
+  },
+  badgeIcon: { fontSize: 26 },
+  badgeLabel: { fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  badgeLock: {
+    position: 'absolute', top: 6, right: 6,
+    width: 14, height: 14, borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center',
+  },
   statsCard: { flexDirection: 'row', borderRadius: 14, padding: 16, marginBottom: 16 },
   statItem: { flex: 1, alignItems: 'center' },
   statValue: { color: '#fff', fontSize: 18, fontWeight: '800' },

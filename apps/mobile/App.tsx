@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View, Platform, useColorScheme } from 'react-native';
+import { ActivityIndicator, View, Platform, useColorScheme, Animated } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from './theme';
@@ -12,6 +12,7 @@ import { Colors } from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { auth } from './lib/firebase';
 
+import HomeScreen from './screens/HomeScreen';
 import MapScreen from './screens/MapScreen';
 import StationsScreen from './screens/StationsScreen';
 import HistoryScreen from './screens/HistoryScreen';
@@ -32,6 +33,36 @@ import { API_URL } from './lib/config';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
+
+const TAB_ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+  Home:     ['home',    'home-outline'],
+  Map:      ['map',     'map-outline'],
+  Stations: ['flash',   'flash-outline'],
+  History:  ['time',    'time-outline'],
+  Profile:  ['person',  'person-outline'],
+};
+
+function AnimatedTabIcon({
+  routeName, color, size, focused,
+}: { routeName: string; color: string; size: number; focused: boolean }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: focused ? 1.22 : 1,
+      useNativeDriver: true,
+      tension: 280,
+      friction: 9,
+    }).start();
+  }, [focused]);
+
+  const [activeIcon, inactiveIcon] = TAB_ICONS[routeName] ?? ['ellipse', 'ellipse-outline'];
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Ionicons name={focused ? activeIcon : inactiveIcon} size={size} color={color} />
+    </Animated.View>
+  );
+}
 
 // Show notifications when app is in foreground
 Notifications.setNotificationHandler({
@@ -82,14 +113,12 @@ function TabNavigator() {
         headerStyle: { backgroundColor: t.headerBg },
         headerTintColor: t.headerText,
         headerTitleStyle: { fontWeight: 'bold' },
-        tabBarIcon: ({ color, size }) => {
-          const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
-            Map: 'map', Stations: 'flash', History: 'time', Profile: 'person',
-          };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
-        },
+        tabBarIcon: ({ color, size, focused }) => (
+          <AnimatedTabIcon routeName={route.name} color={color} size={size} focused={focused} />
+        ),
       })}
     >
+      <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Map" component={MapScreen} />
       <Tab.Screen name="Stations" component={StationsScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
