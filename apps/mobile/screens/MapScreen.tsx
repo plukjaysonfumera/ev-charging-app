@@ -2,14 +2,16 @@ import { API_URL } from '../lib/config';
 import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet, View, ActivityIndicator, Text,
-  TouchableOpacity, ScrollView, TextInput, Platform,
+  TouchableOpacity, ScrollView, TextInput, Platform, Animated, Easing,
+  useColorScheme,
 } from 'react-native';
 import ClusteredMapView from 'react-native-map-clustering';
-import { Marker, PROVIDER_DEFAULT, Region } from 'react-native-maps';
+import { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme';
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 
 const MANILA_REGION: Region = {
   latitude: 14.5995,
@@ -48,10 +50,49 @@ interface Station {
   charging_speeds?: string[];
 }
 
+// ── Shared pulse animation ────────────────────────────────────────────────────
+// One module-level Animated.Value shared by ALL available-station pins.
+// This lets markers render as plain <Marker> children (required for clustering)
+// while still getting a synchronized pulse ring.
+const pulseAnim = new Animated.Value(1);
+Animated.loop(
+  Animated.sequence([
+    Animated.timing(pulseAnim, { toValue: 1.65, duration: 900, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+    Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true, easing: Easing.in(Easing.ease) }),
+  ])
+).start();
+
+const pulseOpacity = pulseAnim.interpolate({ inputRange: [1, 1.65], outputRange: [0.55, 0] });
+
+const markerStyles = StyleSheet.create({
+  wrap:  { alignItems: 'center' },
+  ring: {
+    position: 'absolute',
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 2,
+    top: -8,
+  },
+  pin: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22, shadowRadius: 4, elevation: 5,
+  },
+  tail: {
+    width: 0, height: 0, alignSelf: 'center',
+    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+  },
+});
+
 export default function MapScreen() {
   const t = useTheme();
+  const scheme = useColorScheme();
   const navigation = useNavigation<any>();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
+  const mapStyle = scheme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,52 +176,76 @@ export default function MapScreen() {
       <ClusteredMapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_DEFAULT}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
         initialRegion={MANILA_REGION}
         showsUserLocation
-        clusterColor={t.accent}
-        clusterTextColor="#fff"
-        radius={60}
+        customMapStyle={mapStyle}
+        mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
+        clusterColor="#FFFFFF"
+        clusterTextColor={t.accent}
+        radius={50}
         minPoints={3}
+        maxZoom={14}
         renderCluster={(cluster: any) => {
           const { id, geometry, onPress, properties } = cluster;
           const count = properties.point_count;
-          const size = count < 10 ? 38 : count < 50 ? 46 : 54;
+          const size = count < 10 ? 40 : count < 50 ? 48 : 56;
           return (
             <Marker
               key={`cluster-${id}`}
               coordinate={{ latitude: geometry.coordinates[1], longitude: geometry.coordinates[0] }}
               onPress={onPress}
+              tracksViewChanges={false}
             >
-              <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent }]}>
-                <Text style={styles.clusterText}>{count}</Text>
+              <View style={[
+                styles.cluster,
+                {
+                  width: size, height: size, borderRadius: size / 2,
+                  backgroundColor: '#FFFFFF',
+                  borderColor: t.accent,
+                },
+              ]}>
+                <Ionicons name="flash" size={12} color={t.accent} />
+                <Text style={[styles.clusterText, { color: t.accent }]}>{count}</Text>
               </View>
             </Marker>
           );
         }}
       >
-        {visibleStations.map(station => (
-          <Marker
-            key={station.id}
-            coordinate={{ latitude: Number(station.latitude), longitude: Number(station.longitude) }}
-            title={station.name}
-            description={`${station.address} · Tap for details`}
-            onCalloutPress={() => navigation.navigate('StationDetail', { stationId: station.id })}
-          >
-            <View style={[styles.markerContainer, {
-              backgroundColor: station.has_available ? t.accent : '#888',
-            }]}>
-              <Ionicons name="flash" size={14} color="#fff" />
-            </View>
-            <View style={[styles.markerTail, {
-              borderTopColor: station.has_available ? t.accent : '#888',
-            }]} />
-          </Marker>
-        ))}
+        {visibleStations.map(station => {
+          const available   = station.has_available;
+          const borderColor = available ? t.accent : '#BBBBBB';
+          return (
+            <Marker
+              key={station.id}
+              coordinate={{ latitude: Number(station.latitude), longitude: Number(station.longitude) }}
+              title={station.name}
+              description={`${station.address} · Tap for details`}
+              onCalloutPress={() => navigation.navigate('StationDetail', { stationId: station.id })}
+              tracksViewChanges={false}
+            >
+              <View style={markerStyles.wrap}>
+                {available && (
+                  <Animated.View style={[
+                    markerStyles.ring,
+                    { borderColor, transform: [{ scale: pulseAnim }], opacity: pulseOpacity },
+                  ]} />
+                )}
+                <View style={[markerStyles.pin, { borderColor }]}>
+                  <Ionicons name="flash" size={14} color={borderColor} />
+                </View>
+                <View style={[markerStyles.tail, { borderTopColor: borderColor }]} />
+              </View>
+            </Marker>
+          );
+        })}
       </ClusteredMapView>
 
-      {/* Filter bar */}
-      <View style={[styles.filterBar, { backgroundColor: t.background }]}>
+      {/* Filter bar — slightly translucent so map peeks through */}
+      <View style={[
+        styles.filterBar,
+        { backgroundColor: scheme === 'dark' ? 'rgba(20,24,32,0.96)' : 'rgba(255,255,255,0.97)' },
+      ]}>
         {/* Search input */}
         <View style={[styles.mapSearchContainer, { backgroundColor: t.surface, borderColor: t.border }]}>
           <Ionicons name="search" size={16} color={t.textTertiary} style={styles.mapSearchIcon} />
@@ -238,7 +303,10 @@ export default function MapScreen() {
 
       {/* My location button */}
       <TouchableOpacity
-        style={[styles.locationButton, { backgroundColor: t.mapButton }]}
+        style={[
+          styles.locationButton,
+          { backgroundColor: scheme === 'dark' ? '#1E2430' : '#FFFFFF' },
+        ]}
         onPress={handleMyLocation}
       >
         <Ionicons name="locate" size={22} color={t.accent} />
@@ -340,19 +408,9 @@ const styles = StyleSheet.create({
   errorText: { color: '#fff', textAlign: 'center' },
   cluster: {
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 3, elevation: 5,
+    shadowOpacity: 0.18, shadowRadius: 4, elevation: 5,
   },
-  clusterText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  markerContainer: {
-    width: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3, shadowRadius: 3, elevation: 5,
-  },
-  markerTail: {
-    width: 0, height: 0, alignSelf: 'center',
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-  },
+  clusterText: { fontWeight: '800', fontSize: 12, lineHeight: 14 },
 });
