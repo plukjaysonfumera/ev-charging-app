@@ -10,138 +10,150 @@ export const F = {
   black:     'Inter-Black',
 } as const;
 
-// ─── Shadows ──────────────────────────────────────────────────────────────────
-export const Shadow = {
-  sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-} as const;
-
-// ─── Spacing grid (8pt) ───────────────────────────────────────────────────────
+// ─── Spacing (4pt base, like Figma) ──────────────────────────────────────────
 export const Spacing = {
-  xs:  4,
-  sm:  8,
+  xs:   4,
+  sm:   8,
   md:  12,
   lg:  16,
   xl:  20,
   xxl: 24,
-  xxxl: 32,
+  xxxl:32,
 } as const;
 
-// ─── Border radius ────────────────────────────────────────────────────────────
+// ─── Border radius (Figma-accurate) ──────────────────────────────────────────
+// Figma uses 6–8px for most things; only modals/sheets get 12–16px
 export const Radius = {
-  sm:   8,
-  md:   12,
-  lg:   16,
-  xl:   20,
-  full: 999,
+  xs:   4,    // tiny badge, tag
+  sm:   6,    // input, small button, chip
+  md:   8,    // card, panel, standard button
+  lg:  12,    // modal, bottom sheet
+  xl:  16,    // large card, drawer
+  full:9999,  // true pill
 } as const;
 
-// ─── Colors ───────────────────────────────────────────────────────────────────
+// ─── Shadows (Figma's very-subtle elevation) ──────────────────────────────────
+export const Shadow = {
+  xs: {
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  sm: {
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  md: {
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  lg: {
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+} as const;
+
+// ─── Color palette (Figma / Untitled UI gray scale) ───────────────────────────
+// Light uses a warm-neutral gray (gray-25 = #FCFCFD, gray-50 = #F9FAFB,
+// gray-100 = #F2F4F7, gray-200 = #EAECF0, gray-500 = #667085,
+// gray-600 = #475467, gray-700 = #344054, gray-900 = #101828)
 export const Colors = {
   light: {
-    // Backgrounds
-    background:      '#F8F8F8',
-    surface:         '#FFFFFF',
-    surfaceElevated: '#FFFFFF',
-    surfaceMuted:    '#F2F2F7',
+    // ── Page / surface
+    background:       '#F9FAFB',   // gray-50  — page bg (not pure white)
+    surface:          '#FFFFFF',   // white    — card, panel
+    surfaceElevated:  '#FFFFFF',   // white    — modal, sheet
+    surfaceMuted:     '#F2F4F7',   // gray-100 — section bg, input fill
 
-    // Text
-    text:            '#0A0A0A',
-    textSecondary:   '#5A5A68',
-    textTertiary:    '#AEAEB2',
-    placeholder:     '#AEAEB2',
+    // ── Text
+    text:             '#101828',   // gray-900
+    textSecondary:    '#475467',   // gray-600
+    textTertiary:     '#98A2B3',   // gray-400
+    placeholder:      '#98A2B3',
 
-    // Borders & separators
-    border:          '#EBEBEB',
-    separator:       '#F5F5F5',
+    // ── Borders
+    border:           '#EAECF0',   // gray-200
+    separator:        '#F2F4F7',   // gray-100
 
-    // Brand / accent (keep red)
-    green:           '#E3000F',
-    greenLight:      '#E3000F',
-    greenTint:       '#FFF0F0',
-    greenTintBorder: '#FECDD3',
-    accent:          '#E3000F',
-    accentSoft:      '#FFF0F1',
+    // ── Brand
+    green:            '#E3000F',
+    greenLight:       '#E3000F',
+    greenTint:        '#FEF2F2',
+    greenTintBorder:  '#FECDD3',
+    accent:           '#E3000F',
+    accentSoft:       '#FEF2F2',   // red-50
 
-    // Semantic
-    destructive:     '#FF3B30',
-    star:            '#F59E0B',
-    eco:             '#16A34A',
-    ecoSoft:         '#DCFCE7',
+    // ── Semantic
+    destructive:      '#D92D20',
+    star:             '#F79009',   // amber-400
+    eco:              '#027A48',   // green-800
+    ecoSoft:          '#ECFDF3',   // green-50
 
-    // Chrome
-    tabBar:          '#FFFFFF',
-    headerBg:        '#111827',    // dark header — premium feel
-    headerText:      '#FFFFFF',
-    inputBg:         '#F2F2F7',
+    // ── Chrome
+    tabBar:           '#FFFFFF',
+    headerBg:         '#101828',   // gray-900 — premium dark header
+    headerText:       '#FFFFFF',
+    inputBg:          '#F9FAFB',
 
-    // Badges
-    badge:           '#FFE4E6',
-    badgeText:       '#E3000F',
-    overlay:         'rgba(255,255,255,0.85)',
-    mapButton:       '#FFFFFF',
+    // ── Badges
+    badge:            '#FEF2F2',
+    badgeText:        '#E3000F',
+    overlay:          'rgba(16,24,40,0.6)',
+    mapButton:        '#FFFFFF',
   },
   dark: {
-    // Backgrounds
-    background:      '#0A0A0A',
-    surface:         '#161618',
-    surfaceElevated: '#1E1E20',
-    surfaceMuted:    '#1C1C1E',
+    // ── Page / surface
+    background:       '#0C111D',   // near-black
+    surface:          '#161B27',   // gray-900 dark
+    surfaceElevated:  '#1D2939',   // gray-800 dark
+    surfaceMuted:     '#182230',   // slightly lighter
 
-    // Text
-    text:            '#F5F5F5',
-    textSecondary:   '#AEAEB2',
-    textTertiary:    '#636366',
-    placeholder:     '#636366',
+    // ── Text
+    text:             '#F9FAFB',   // gray-50
+    textSecondary:    '#98A2B3',   // gray-400
+    textTertiary:     '#475467',   // gray-600
+    placeholder:      '#475467',
 
-    // Borders & separators
-    border:          '#2C2C2E',
-    separator:       '#222224',
+    // ── Borders
+    border:           '#1D2939',   // gray-800
+    separator:        '#161B27',
 
-    // Brand / accent
-    green:           '#FF453A',
-    greenLight:      '#FF453A',
-    greenTint:       '#2D0000',
-    greenTintBorder: '#7F1D1D',
-    accent:          '#FF453A',
-    accentSoft:      '#2D0000',
+    // ── Brand
+    green:            '#FF6B6B',
+    greenLight:       '#FF6B6B',
+    greenTint:        '#2D0000',
+    greenTintBorder:  '#7F1D1D',
+    accent:           '#FF6B6B',
+    accentSoft:       '#2D0000',
 
-    // Semantic
-    destructive:     '#FF453A',
-    star:            '#FFD60A',
-    eco:             '#4ADE80',
-    ecoSoft:         '#14532D',
+    // ── Semantic
+    destructive:      '#F97066',
+    star:             '#FDB022',
+    eco:              '#12B76A',
+    ecoSoft:          '#054F31',
 
-    // Chrome
-    tabBar:          '#111111',
-    headerBg:        '#111111',
-    headerText:      '#FFFFFF',
-    inputBg:         '#2C2C2E',
+    // ── Chrome
+    tabBar:           '#101828',
+    headerBg:         '#0C111D',
+    headerText:       '#FFFFFF',
+    inputBg:          '#1D2939',
 
-    // Badges
-    badge:           '#2D0000',
-    badgeText:       '#FF453A',
-    overlay:         'rgba(0,0,0,0.85)',
-    mapButton:       '#2C2C2E',
+    // ── Badges
+    badge:            '#2D0000',
+    badgeText:        '#FF6B6B',
+    overlay:          'rgba(0,0,0,0.7)',
+    mapButton:        '#1D2939',
   },
 };
 

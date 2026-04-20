@@ -234,7 +234,7 @@ export default function StationsScreen() {
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: t.surface }]}>
-        <ActivityIndicator size="large" color={t.green} />
+        <ActivityIndicator size="large" color={t.accent} />
       </View>
     );
   }
@@ -263,7 +263,7 @@ export default function StationsScreen() {
       {/* Search */}
       <View style={[styles.searchContainer, { backgroundColor: t.surfaceElevated, borderColor: t.border }]}>
         {searching
-          ? <ActivityIndicator size="small" color={t.green} style={styles.searchIcon} />
+          ? <ActivityIndicator size="small" color={t.accent} style={styles.searchIcon} />
           : <Ionicons name="search" size={18} color={t.textTertiary} style={styles.searchIcon} />
         }
         <TextInput
@@ -293,7 +293,7 @@ export default function StationsScreen() {
                 style={[
                   styles.filterChip,
                   { backgroundColor: t.surfaceElevated, borderColor: t.border },
-                  active && { backgroundColor: t.green, borderColor: t.green },
+                  active && { backgroundColor: t.accent, borderColor: t.accent },
                 ]}
                 onPress={() => setConnectorFilter(item)}
               >
@@ -318,7 +318,7 @@ export default function StationsScreen() {
                 style={[
                   styles.filterChip,
                   { backgroundColor: t.surfaceElevated, borderColor: t.border },
-                  active && { backgroundColor: t.green, borderColor: t.green },
+                  active && { backgroundColor: t.accent, borderColor: t.accent },
                 ]}
                 onPress={() => setAvailabilityFilter(item)}
               >
@@ -340,8 +340,8 @@ export default function StationsScreen() {
           {filtered.length} station{filtered.length !== 1 ? 's' : ''}
         </Text>
         {activeFilterCount > 0 && (
-          <TouchableOpacity onPress={clearFilters} style={[styles.clearBtn, { backgroundColor: t.green + '18' }]}>
-            <Text style={[styles.clearBtnText, { color: t.green }]}>Clear filters ({activeFilterCount})</Text>
+          <TouchableOpacity onPress={clearFilters} style={[styles.clearBtn, { backgroundColor: t.accentSoft }]}>
+            <Text style={[styles.clearBtnText, { color: t.accent }]}>Clear filters ({activeFilterCount})</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -371,7 +371,7 @@ export default function StationsScreen() {
             )}
             {!showSaved && activeFilterCount > 0 && (
               <TouchableOpacity onPress={clearFilters} style={{ marginTop: 12 }}>
-                <Text style={[styles.clearBtnText, { color: t.green }]}>Clear filters</Text>
+                <Text style={[styles.clearBtnText, { color: t.accent }]}>Clear filters</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -383,65 +383,69 @@ export default function StationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  centered:  { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+
+  // Toggle tabs — Figma-style: text tabs with underline indicator
+  toggleRow: { flexDirection: 'row', borderBottomWidth: 1 },
+  toggleTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
+  toggleText:{ fontSize: 13, fontFamily: F.semiBold },
+
+  // Search — clean Figma input
   searchContainer: {
     flexDirection: 'row', alignItems: 'center',
-    margin: 12, marginBottom: 8, borderRadius: 12,
-    paddingHorizontal: 12, borderWidth: 1,
+    margin: Spacing.md, marginBottom: Spacing.sm,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.md, borderWidth: 1, height: 40,
   },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, fontFamily: F.regular },
-  filterSection: { paddingHorizontal: 12, marginBottom: 6 },
-  filterLabel: { fontSize: 10, fontFamily: F.extraBold, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 },
-  filterRow: { gap: 8 },
-  availRow: { flexDirection: 'row', gap: 8 },
-  filterChip: {
+  searchIcon:  { marginRight: Spacing.sm },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: F.regular, paddingVertical: 0 },
+
+  // Filters
+  filterSection: { paddingHorizontal: Spacing.md, marginBottom: Spacing.sm },
+  filterLabel:   { fontSize: 10, fontFamily: F.extraBold, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: Spacing.sm },
+  filterRow:     { gap: Spacing.sm },
+  availRow:      { flexDirection: 'row', gap: Spacing.sm },
+  filterChip:    {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.sm, borderWidth: 1,
   },
-  filterText: { fontSize: 13, fontFamily: F.medium },
-  availIndicator: { width: 7, height: 7, borderRadius: 4 },
-  resultsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 },
-  resultsCount: { fontSize: 12, fontFamily: F.regular },
-  clearBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  clearBtnText: { fontSize: 12, fontFamily: F.semiBold },
-  list: { padding: 12, paddingTop: 4 },
+  filterText:    { fontSize: 12, fontFamily: F.medium },
+  availIndicator:{ width: 6, height: 6, borderRadius: 3 },
+
+  // Results row
+  resultsRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
+  resultsCount:{ fontSize: 12, fontFamily: F.regular },
+  clearBtn:    { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radius.xs },
+  clearBtnText:{ fontSize: 12, fontFamily: F.semiBold },
+
+  list: { padding: Spacing.md, paddingTop: Spacing.xs, gap: Spacing.sm },
+
+  // Card — Figma: white bg + 1px border, 8px radius, no heavy shadow
   card: {
-    borderRadius: 16, marginBottom: 10, overflow: 'hidden',
-    flexDirection: 'row',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+    borderRadius: Radius.md, overflow: 'hidden',
+    flexDirection: 'row', borderWidth: 1,
+    shadowColor: '#101828', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 3, elevation: 1,
   },
-  accentBar: { width: 4 },
-  cardInner: { flex: 1, padding: 14 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  stationIconBox: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  stationName: { fontSize: 14, fontFamily: F.semiBold, letterSpacing: -0.1 },
-  address: { fontSize: 12, fontFamily: F.regular, marginTop: 2 },
-  availPill: {
+  accentBar:      { width: 3 },
+  cardInner:      { flex: 1, padding: Spacing.md },
+  cardTop:        { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+  stationIconBox: { width: 38, height: 38, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  stationName:    { fontSize: 14, fontFamily: F.semiBold },
+  address:        { fontSize: 11, fontFamily: F.regular, marginTop: 2 },
+  availPill:      {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1,
+    borderRadius: Radius.xs, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1,
   },
-  availDot: { width: 6, height: 6, borderRadius: 3 },
-  availText: { fontSize: 10, fontFamily: F.bold },
-  connectorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
-  connectorPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
-  },
-  connectorPillText: { fontSize: 10, fontFamily: F.bold },
-  cardFooter: { flexDirection: 'row', alignItems: 'center' },
-  stars: { flexDirection: 'row' },
-  reviewCount: { fontSize: 12, fontFamily: F.regular, marginLeft: 4 },
-  dot: { width: 3, height: 3, borderRadius: 2, marginHorizontal: 8 },
-  portCount: { fontSize: 12, fontFamily: F.semiBold, marginLeft: 2 },
-  emptyText: { fontSize: 15, fontFamily: F.medium, marginTop: 12 },
-  emptySubtext: { fontSize: 13, fontFamily: F.regular, marginTop: 6, textAlign: 'center', paddingHorizontal: 32 },
-  toggleRow: { flexDirection: 'row', borderBottomWidth: 1 },
-  toggleTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
-  toggleText: { fontSize: 14, fontFamily: F.semiBold },
+  availDot:       { width: 5, height: 5, borderRadius: 2.5 },
+  availText:      { fontSize: 10, fontFamily: F.semiBold },
+  connectorRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: Spacing.sm },
+  connectorPill:  { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Radius.xs },
+  connectorPillText: { fontSize: 10, fontFamily: F.semiBold },
+  cardFooter:     { flexDirection: 'row', alignItems: 'center' },
+  stars:          { flexDirection: 'row' },
+  reviewCount:    { fontSize: 11, fontFamily: F.regular, marginLeft: 3 },
+  dot:            { width: 3, height: 3, borderRadius: 1.5, marginHorizontal: 6 },
+  portCount:      { fontSize: 11, fontFamily: F.semiBold, marginLeft: 2 },
+  emptyText:      { fontSize: 15, fontFamily: F.medium, marginTop: Spacing.md },
+  emptySubtext:   { fontSize: 13, fontFamily: F.regular, marginTop: Spacing.sm, textAlign: 'center', paddingHorizontal: 32 },
 });

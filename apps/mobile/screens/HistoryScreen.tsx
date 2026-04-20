@@ -10,18 +10,17 @@ import { auth } from '../lib/firebase';
 import { useTheme, F, Shadow, Spacing, Radius } from '../theme';
 import { co2SavedKg, formatCo2 } from '../lib/eco';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const W = Dimensions.get('window').width;
 
-const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  COMPLETED: { color: '#16A34A', bg: '#DCFCE7', icon: 'checkmark-circle', label: 'Completed' },
-  CHARGING:  { color: '#2563EB', bg: '#DBEAFE', icon: 'flash',            label: 'Charging'  },
-  INITIATED: { color: '#D97706', bg: '#FEF3C7', icon: 'time',             label: 'Initiated' },
-  CANCELLED: { color: '#9CA3AF', bg: '#F3F4F6', icon: 'close-circle',     label: 'Cancelled' },
-  FAILED:    { color: '#DC2626', bg: '#FEE2E2', icon: 'alert-circle',     label: 'Failed'    },
+const STATUS: Record<string, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+  COMPLETED: { color: '#027A48', bg: '#ECFDF3', icon: 'checkmark-circle', label: 'Completed' },
+  CHARGING:  { color: '#1570EF', bg: '#EFF8FF', icon: 'flash',            label: 'Charging'  },
+  INITIATED: { color: '#B54708', bg: '#FFFAEB', icon: 'time',             label: 'Initiated' },
+  CANCELLED: { color: '#667085', bg: '#F2F4F7', icon: 'close-circle',     label: 'Cancelled' },
+  FAILED:    { color: '#B42318', bg: '#FEF3F2', icon: 'alert-circle',     label: 'Failed'    },
 };
-
-const SPEED_LABELS: Record<string, string> = { LEVEL1: 'Level 1', LEVEL2: 'Level 2', DCFC: 'DC Fast' };
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const SPEED: Record<string, string> = { LEVEL1: 'Level 1', LEVEL2: 'Level 2', DCFC: 'DC Fast' };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 interface Session {
   id: string; status: string; startedAt?: string; endedAt?: string;
@@ -32,7 +31,7 @@ interface Session {
   vehicle?: { make: string; model: string; year: number };
 }
 
-function buildMonthlyData(sessions: Session[], field: 'kWh' | 'spent', accentColor: string) {
+function buildChart(sessions: Session[], field: 'kWh' | 'spent', accent: string) {
   const now = new Date();
   return Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
@@ -42,10 +41,18 @@ function buildMonthlyData(sessions: Session[], field: 'kWh' | 'spent', accentCol
       return sd.getMonth() === m && sd.getFullYear() === y && s.status === 'COMPLETED';
     });
     const value = field === 'kWh'
-      ? parseFloat(ms.reduce((sum, s) => sum + (s.energyKwh ?? 0), 0).toFixed(1))
-      : parseFloat(ms.reduce((sum, s) => sum + Number(s.totalAmount ?? 0), 0).toFixed(0));
-    return { value, label: MONTH_SHORT[m], frontColor: i === 5 ? accentColor : accentColor + '60' };
+      ? parseFloat(ms.reduce((a, s) => a + (s.energyKwh ?? 0), 0).toFixed(1))
+      : parseFloat(ms.reduce((a, s) => a + Number(s.totalAmount ?? 0), 0).toFixed(0));
+    return { value, label: MONTHS[m], frontColor: i === 5 ? accent : accent + '55' };
   });
+}
+
+function fmtDur(mins?: number) {
+  if (!mins) return '—';
+  return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function HistoryScreen() {
@@ -66,77 +73,68 @@ export default function HistoryScreen() {
       const json = await res.json();
       setSessions(json.data ?? []);
     } catch { /* silent */ } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading(false); setRefreshing(false);
     }
   }
 
-  function fmtDuration(minutes?: number) {
-    if (!minutes) return '—';
-    return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  }
-  function fmtDate(d: string) {
-    return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
+  const completed  = sessions.filter(s => s.status === 'COMPLETED');
+  const totalKwh   = completed.reduce((a, s) => a + (s.energyKwh ?? 0), 0);
+  const totalSpent = completed.reduce((a, s) => a + Number(s.totalAmount ?? 0), 0);
+  const totalMins  = completed.reduce((a, s) => a + (s.durationMinutes ?? 0), 0);
+  const totalCo2   = co2SavedKg(totalKwh);
 
-  const completed    = sessions.filter(s => s.status === 'COMPLETED');
-  const totalKwh     = completed.reduce((sum, s) => sum + (s.energyKwh ?? 0), 0);
-  const totalSpent   = completed.reduce((sum, s) => sum + Number(s.totalAmount ?? 0), 0);
-  const totalMinutes = completed.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
-  const totalCo2     = co2SavedKg(totalKwh);
-
-  const chartData = buildMonthlyData(sessions, chartTab, t.accent);
+  const chartData = buildChart(sessions, chartTab, t.accent);
   const chartMax  = Math.max(...chartData.map(d => d.value), 1);
 
-  function renderHeader() {
+  function Header() {
     if (!sessions.length) return null;
     return (
-      <View style={s.headerBlock}>
-        {/* Summary card */}
-        <View style={[s.summaryCard, { backgroundColor: t.headerBg }]}>
-          <Text style={s.summaryEyebrow}>CHARGING SUMMARY</Text>
-          <View style={s.summaryStats}>
+      <View style={hd.wrap}>
+        {/* Summary */}
+        <View style={[hd.summary, { backgroundColor: t.headerBg }]}>
+          <Text style={hd.eyebrow}>CHARGING SUMMARY</Text>
+          <View style={hd.row}>
             {[
-              { value: String(completed.length),       label: 'Sessions'  },
-              { value: `${totalKwh.toFixed(1)} kWh`,  label: 'Energy'    },
-              { value: `₱${totalSpent.toFixed(0)}`,   label: 'Spent'     },
-              { value: fmtDuration(totalMinutes),      label: 'Time'      },
+              { v: String(completed.length),       l: 'Sessions' },
+              { v: `${totalKwh.toFixed(1)}`,       l: 'kWh'      },
+              { v: `₱${totalSpent.toFixed(0)}`,   l: 'Spent'    },
+              { v: fmtDur(totalMins),              l: 'Time'     },
             ].map((item, i, arr) => (
-              <View key={item.label} style={{ flexDirection: 'row', flex: 1 }}>
-                <View style={s.summaryStat}>
-                  <Text style={s.summaryValue}>{item.value}</Text>
-                  <Text style={s.summaryLabel}>{item.label}</Text>
+              <View key={item.l} style={{ flexDirection: 'row', flex: 1 }}>
+                <View style={hd.stat}>
+                  <Text style={hd.statV}>{item.v}</Text>
+                  <Text style={hd.statL}>{item.l}</Text>
                 </View>
-                {i < arr.length - 1 && <View style={s.summaryDiv} />}
+                {i < arr.length - 1 && <View style={hd.div} />}
               </View>
             ))}
           </View>
         </View>
 
         {/* CO₂ strip */}
-        <View style={[s.co2Strip, { backgroundColor: '#166534' }]}>
-          <Text style={{ fontSize: 22 }}>🌱</Text>
+        <View style={[hd.co2, { backgroundColor: '#022C22', borderColor: '#065F46' }]}>
+          <Text style={{ fontSize: 20 }}>🌱</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.co2Title}>Saved {formatCo2(totalCo2)} CO₂</Text>
-            <Text style={s.co2Sub}>vs. driving an equivalent petrol car</Text>
+            <Text style={hd.co2Title}>Saved {formatCo2(totalCo2)} of CO₂</Text>
+            <Text style={hd.co2Sub}>vs. driving an equivalent petrol car</Text>
           </View>
-          <View style={s.co2Badge}>
-            <Text style={s.co2BadgeText}>{totalKwh.toFixed(1)} kWh</Text>
+          <View style={hd.co2Badge}>
+            <Text style={hd.co2BadgeText}>{totalKwh.toFixed(1)} kWh</Text>
           </View>
         </View>
 
-        {/* Chart card */}
-        <View style={[s.chartCard, { backgroundColor: t.surface }, Shadow.sm]}>
-          <View style={s.chartHeader}>
-            <Text style={[s.chartTitle, { color: t.text }]}>Monthly Analytics</Text>
-            <View style={[s.chartTabRow, { backgroundColor: t.surfaceMuted }]}>
+        {/* Chart */}
+        <View style={[hd.chart, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <View style={hd.chartTop}>
+            <Text style={[hd.chartTitle, { color: t.text }]}>Monthly Analytics</Text>
+            <View style={[hd.tabs, { backgroundColor: t.surfaceMuted }]}>
               {(['kWh', 'spent'] as const).map(tab => (
                 <TouchableOpacity
                   key={tab}
-                  style={[s.chartTab, chartTab === tab && { backgroundColor: t.accent }]}
+                  style={[hd.tab, chartTab === tab && { backgroundColor: t.accent }]}
                   onPress={() => setChartTab(tab)}
                 >
-                  <Text style={[s.chartTabText, { color: chartTab === tab ? '#fff' : t.textSecondary }]}>
+                  <Text style={[hd.tabText, { color: chartTab === tab ? '#fff' : t.textSecondary }]}>
                     {tab === 'kWh' ? 'Energy' : 'Spending'}
                   </Text>
                 </TouchableOpacity>
@@ -147,33 +145,33 @@ export default function HistoryScreen() {
           {chartMax > 0 ? (
             <BarChart
               data={chartData}
-              barWidth={26}
-              spacing={16}
+              barWidth={24}
+              spacing={14}
               roundedTop
               roundedBottom
               hideRules
               xAxisThickness={0}
               yAxisThickness={0}
-              yAxisTextStyle={{ color: t.textTertiary, fontSize: 10, fontFamily: F.medium }}
-              xAxisLabelTextStyle={{ color: t.textTertiary, fontSize: 10, fontFamily: F.medium }}
+              yAxisTextStyle={{ color: t.textTertiary, fontSize: 10, fontFamily: F.regular }}
+              xAxisLabelTextStyle={{ color: t.textTertiary, fontSize: 10, fontFamily: F.regular }}
               noOfSections={4}
               maxValue={chartMax * 1.25}
-              width={SCREEN_WIDTH - 80}
-              height={130}
-              barBorderRadius={6}
+              width={W - 80}
+              height={120}
+              barBorderRadius={4}
               isAnimated
-              animationDuration={700}
-              labelWidth={30}
+              animationDuration={600}
+              labelWidth={28}
               renderTooltip={(item: any) => (
-                <View style={[s.tooltip, { backgroundColor: t.accent }]}>
-                  <Text style={s.tooltipText}>
+                <View style={[hd.tip, { backgroundColor: t.text }]}>
+                  <Text style={[hd.tipText, { color: t.surface }]}>
                     {chartTab === 'kWh' ? `${item.value} kWh` : `₱${item.value}`}
                   </Text>
                 </View>
               )}
             />
           ) : (
-            <View style={s.chartEmpty}>
+            <View style={hd.chartEmpty}>
               <Text style={[{ color: t.textTertiary, fontFamily: F.regular, fontSize: 13 }]}>No data yet</Text>
             </View>
           )}
@@ -183,52 +181,52 @@ export default function HistoryScreen() {
   }
 
   function renderItem({ item }: { item: Session }) {
-    const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.FAILED;
+    const cfg = STATUS[item.status] ?? STATUS.FAILED;
     const co2 = item.energyKwh ? co2SavedKg(item.energyKwh) : 0;
     return (
-      <View style={[s.card, { backgroundColor: t.surface }, Shadow.sm]}>
-        {/* Card header */}
-        <View style={s.cardHeader}>
-          <View style={[s.cardIcon, { backgroundColor: t.accentSoft }]}>
-            <Ionicons name="flash" size={17} color={t.accent} />
+      <View style={[cd.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+        {/* Header */}
+        <View style={cd.top}>
+          <View style={[cd.icon, { backgroundColor: t.accentSoft }]}>
+            <Ionicons name="flash" size={16} color={t.accent} />
           </View>
-          <View style={s.cardTitleBlock}>
-            <Text style={[s.stationName, { color: t.text }]} numberOfLines={1}>{item.station.name}</Text>
-            <Text style={[s.stationCity, { color: t.textTertiary }]}>{item.station.city} · {fmtDate(item.createdAt)}</Text>
+          <View style={cd.titleBlock}>
+            <Text style={[cd.name, { color: t.text }]} numberOfLines={1}>{item.station.name}</Text>
+            <Text style={[cd.city, { color: t.textTertiary }]}>{item.station.city} · {fmtDate(item.createdAt)}</Text>
           </View>
-          <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
-            <Ionicons name={cfg.icon} size={12} color={cfg.color} />
-            <Text style={[s.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+          <View style={[cd.badge, { backgroundColor: cfg.bg }]}>
+            <Ionicons name={cfg.icon} size={11} color={cfg.color} />
+            <Text style={[cd.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
           </View>
         </View>
 
-        <View style={[s.divider, { backgroundColor: t.separator }]} />
+        <View style={[cd.sep, { backgroundColor: t.separator }]} />
 
-        {/* Metrics row */}
-        <View style={s.metricsRow}>
+        {/* Metrics */}
+        <View style={cd.metrics}>
           {[
-            { icon: 'flash-outline',  value: item.energyKwh != null ? `${item.energyKwh.toFixed(2)} kWh` : '—', color: t.text  },
-            { icon: 'time-outline',   value: fmtDuration(item.durationMinutes),                                   color: t.text  },
-            { icon: 'card-outline',   value: item.totalAmount != null ? `₱${Number(item.totalAmount).toFixed(2)}` : '—', color: t.text },
-            { icon: 'leaf-outline',   value: co2 > 0 ? `-${co2} kg` : '—',                                       color: '#16A34A' },
+            { icon: 'flash-outline' as const,  v: item.energyKwh != null ? `${item.energyKwh.toFixed(2)} kWh` : '—', c: t.text     },
+            { icon: 'time-outline'  as const,  v: fmtDur(item.durationMinutes),                                       c: t.text     },
+            { icon: 'card-outline'  as const,  v: item.totalAmount != null ? `₱${Number(item.totalAmount).toFixed(2)}` : '—', c: t.text },
+            { icon: 'leaf-outline'  as const,  v: co2 > 0 ? `−${co2} kg` : '—',                                      c: '#027A48'  },
           ].map((m, i, arr) => (
             <View key={i} style={{ flexDirection: 'row', flex: 1 }}>
-              <View style={s.metric}>
-                <Ionicons name={m.icon as any} size={13} color={m.color === t.text ? t.textTertiary : m.color} />
-                <Text style={[s.metricValue, { color: m.color }]}>{m.value}</Text>
+              <View style={cd.metric}>
+                <Ionicons name={m.icon} size={12} color={m.c === t.text ? t.textTertiary : m.c} />
+                <Text style={[cd.metricV, { color: m.c }]}>{m.v}</Text>
               </View>
-              {i < arr.length - 1 && <View style={[s.metricDiv, { backgroundColor: t.separator }]} />}
+              {i < arr.length - 1 && <View style={[cd.metricSep, { backgroundColor: t.separator }]} />}
             </View>
           ))}
         </View>
 
         {/* Footer */}
-        <View style={s.cardFooter}>
-          <Text style={[s.portInfo, { color: t.textTertiary }]}>
-            {SPEED_LABELS[item.port.chargingSpeed] ?? item.port.chargingSpeed} · {item.port.maxKw} kW · {item.port.connectorType}
+        <View style={cd.footer}>
+          <Text style={[cd.portInfo, { color: t.textTertiary }]}>
+            {SPEED[item.port.chargingSpeed] ?? item.port.chargingSpeed} · {item.port.maxKw} kW · {item.port.connectorType}
           </Text>
           {item.vehicle && (
-            <Text style={[s.vehicleInfo, { color: t.textTertiary }]}>
+            <Text style={[cd.portInfo, { color: t.textTertiary }]}>
               {item.vehicle.year} {item.vehicle.make} {item.vehicle.model}
             </Text>
           )}
@@ -239,28 +237,28 @@ export default function HistoryScreen() {
 
   if (loading) {
     return (
-      <View style={[s.centered, { backgroundColor: t.background }]}>
+      <View style={[g.center, { backgroundColor: t.background }]}>
         <ActivityIndicator size="large" color={t.accent} />
       </View>
     );
   }
 
   return (
-    <View style={[s.container, { backgroundColor: t.background }]}>
+    <View style={[g.flex, { backgroundColor: t.background }]}>
       <FlatList
         data={sessions}
         keyExtractor={s => s.id}
         renderItem={renderItem}
-        contentContainerStyle={s.list}
+        contentContainerStyle={g.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadSessions(true)} tintColor={t.accent} />}
-        ListHeaderComponent={renderHeader()}
+        ListHeaderComponent={<Header />}
         ListEmptyComponent={
-          <View style={s.emptyState}>
-            <View style={[s.emptyIcon, { backgroundColor: t.surfaceMuted }]}>
-              <Ionicons name="battery-charging-outline" size={44} color={t.textTertiary} />
+          <View style={g.empty}>
+            <View style={[g.emptyIcon, { backgroundColor: t.surfaceMuted }]}>
+              <Ionicons name="battery-charging-outline" size={40} color={t.textTertiary} />
             </View>
-            <Text style={[s.emptyTitle, { color: t.text }]}>No sessions yet</Text>
-            <Text style={[s.emptySubtitle, { color: t.textSecondary }]}>
+            <Text style={[g.emptyTitle, { color: t.text }]}>No sessions yet</Text>
+            <Text style={[g.emptySub, { color: t.textSecondary }]}>
               Your charging history will appear here after your first session.
             </Text>
           </View>
@@ -270,66 +268,61 @@ export default function HistoryScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1 },
-  centered:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list:      { padding: Spacing.lg, paddingBottom: 40, flexGrow: 1 },
+// ── Global ─────────────────────────────────────────────────────────────────────
+const g = StyleSheet.create({
+  flex:      { flex: 1 },
+  center:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  list:      { padding: Spacing.lg, paddingBottom: 40, gap: Spacing.sm, flexGrow: 1 },
+  empty:     { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 72, gap: Spacing.sm },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
+  emptyTitle:{ fontSize: 17, fontFamily: F.semiBold },
+  emptySub:  { fontSize: 14, fontFamily: F.regular, textAlign: 'center', paddingHorizontal: 32, lineHeight: 22 },
+});
 
-  headerBlock: { marginBottom: Spacing.md },
+// ── Header styles ──────────────────────────────────────────────────────────────
+const hd = StyleSheet.create({
+  wrap:  { gap: Spacing.sm, marginBottom: Spacing.sm },
 
-  // Summary
-  summaryCard:  { borderRadius: Radius.lg, padding: Spacing.xl, marginBottom: Spacing.sm },
-  summaryEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: F.extraBold, letterSpacing: 1.2, marginBottom: Spacing.lg },
-  summaryStats: { flexDirection: 'row', alignItems: 'center' },
-  summaryStat:  { flex: 1, alignItems: 'center' },
-  summaryValue: { color: '#fff', fontSize: 16, fontFamily: F.extraBold, letterSpacing: -0.3 },
-  summaryLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: F.medium, marginTop: 3 },
-  summaryDiv:   { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.15)' },
+  summary:  { borderRadius: Radius.md, padding: Spacing.xl },
+  eyebrow:  { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontFamily: F.extraBold, letterSpacing: 1.2, marginBottom: Spacing.lg },
+  row:      { flexDirection: 'row' },
+  stat:     { flex: 1, alignItems: 'center' },
+  statV:    { color: '#fff', fontSize: 15, fontFamily: F.bold, letterSpacing: -0.2 },
+  statL:    { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: F.regular, marginTop: 3 },
+  div:      { width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.12)' },
 
-  // CO₂ strip
-  co2Strip: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.sm,
-  },
-  co2Title:    { color: '#fff', fontSize: 13, fontFamily: F.bold },
-  co2Sub:      { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: F.regular, marginTop: 2 },
-  co2Badge:    { borderRadius: Radius.sm, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
-  co2BadgeText:{ color: '#fff', fontSize: 12, fontFamily: F.semiBold },
+  co2:      { borderRadius: Radius.md, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  co2Title: { color: '#fff', fontSize: 13, fontFamily: F.semiBold },
+  co2Sub:   { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: F.regular, marginTop: 2 },
+  co2Badge: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: Radius.xs, paddingHorizontal: 8, paddingVertical: 4 },
+  co2BadgeText: { color: '#fff', fontSize: 11, fontFamily: F.semiBold },
 
-  // Chart
-  chartCard:    { borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg },
-  chartHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  chartTitle:   { fontSize: 15, fontFamily: F.bold, letterSpacing: -0.2 },
-  chartTabRow:  { flexDirection: 'row', borderRadius: Radius.md, padding: 3 },
-  chartTab:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: Radius.sm - 2 },
-  chartTabText: { fontSize: 12, fontFamily: F.semiBold },
-  chartEmpty:   { height: 130, alignItems: 'center', justifyContent: 'center' },
-  tooltip:      { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, marginBottom: 4 },
-  tooltipText:  { color: '#fff', fontSize: 10, fontFamily: F.bold },
+  chart:      { borderRadius: Radius.md, borderWidth: 1, padding: Spacing.lg },
+  chartTop:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
+  chartTitle: { fontSize: 14, fontFamily: F.semiBold },
+  tabs:       { flexDirection: 'row', borderRadius: Radius.sm, padding: 3 },
+  tab:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.xs },
+  tabText:    { fontSize: 12, fontFamily: F.semiBold },
+  chartEmpty: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  tip:        { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, marginBottom: 4 },
+  tipText:    { fontSize: 10, fontFamily: F.semiBold },
+});
 
-  // Session card
-  card: { borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.sm },
-  cardHeader:    { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  cardIcon:      { width: 38, height: 38, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
-  cardTitleBlock:{ flex: 1, marginRight: Spacing.sm },
-  stationName:   { fontSize: 14, fontFamily: F.semiBold, letterSpacing: -0.1 },
-  stationCity:   { fontSize: 12, fontFamily: F.regular, marginTop: 2 },
-  statusBadge:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.full },
-  statusText:    { fontSize: 11, fontFamily: F.semiBold },
-  divider:       { height: 1, marginBottom: Spacing.md },
-
-  metricsRow:    { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  metric:        { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metricValue:   { fontSize: 12, fontFamily: F.semiBold },
-  metricDiv:     { width: 1, height: 14, marginHorizontal: 2 },
-
-  cardFooter:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  portInfo:      { fontSize: 11, fontFamily: F.regular },
-  vehicleInfo:   { fontSize: 11, fontFamily: F.regular },
-
-  // Empty
-  emptyState:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: Spacing.sm },
-  emptyIcon:     { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
-  emptyTitle:    { fontSize: 18, fontFamily: F.bold },
-  emptySubtitle: { fontSize: 14, fontFamily: F.regular, textAlign: 'center', paddingHorizontal: 32, lineHeight: 22 },
+// ── Card styles ────────────────────────────────────────────────────────────────
+const cd = StyleSheet.create({
+  card:      { borderRadius: Radius.md, borderWidth: 1, padding: Spacing.md },
+  top:       { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
+  icon:      { width: 36, height: 36, borderRadius: Radius.xs, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
+  titleBlock:{ flex: 1, marginRight: Spacing.sm },
+  name:      { fontSize: 14, fontFamily: F.semiBold },
+  city:      { fontSize: 11, fontFamily: F.regular, marginTop: 2 },
+  badge:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: Radius.xs },
+  badgeText: { fontSize: 11, fontFamily: F.semiBold },
+  sep:       { height: 1, marginBottom: Spacing.md },
+  metrics:   { flexDirection: 'row', marginBottom: Spacing.md },
+  metric:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metricV:   { fontSize: 12, fontFamily: F.semiBold },
+  metricSep: { width: 1, height: 12, marginHorizontal: 2 },
+  footer:    { flexDirection: 'row', justifyContent: 'space-between' },
+  portInfo:  { fontSize: 11, fontFamily: F.regular },
 });
