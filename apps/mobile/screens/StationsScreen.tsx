@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme, F } from '../theme';
+import { useTheme, F, Spacing, Radius } from '../theme';
 import { useFavorites } from '../hooks/useFavorites';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
