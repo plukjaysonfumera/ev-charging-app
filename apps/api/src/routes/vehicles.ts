@@ -27,13 +27,22 @@ router.get('/', async (req, res) => {
 // POST /api/v1/vehicles
 router.post('/', async (req, res) => {
   try {
-    const { firebaseUid, make, model, year, batteryKwh, rangKm, connectors, licensePlate } = req.body;
+    const { firebaseUid, make, model, year, batteryKwh, rangKm, connectors, licensePlate, email, displayName } = req.body;
     if (!firebaseUid || !make || !model || !year) {
       return res.status(400).json({ error: 'firebaseUid, make, model, year are required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { firebaseUid } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Find-or-create: new users who haven't started a session yet won't have a DB record yet.
+    let user = await prisma.user.findUnique({ where: { firebaseUid } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          firebaseUid,
+          email: email ?? `${firebaseUid}@phevph.app`,
+          displayName: displayName ?? 'EV Driver',
+        },
+      });
+    }
 
     const count = await prisma.vehicle.count({ where: { userId: user.id } });
 

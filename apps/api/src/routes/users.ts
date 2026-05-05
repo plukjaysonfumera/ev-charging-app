@@ -46,6 +46,28 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
+// POST /api/v1/users/register
+// Called immediately after Firebase registration to ensure a DB record exists.
+router.post('/register', async (req, res) => {
+  try {
+    const { firebaseUid, email, displayName } = req.body;
+    if (!firebaseUid || !email) {
+      return res.status(400).json({ error: 'firebaseUid and email are required' });
+    }
+
+    const user = await prisma.user.upsert({
+      where: { firebaseUid },
+      update: { displayName: displayName ?? undefined },
+      create: { firebaseUid, email, displayName: displayName ?? 'EV Driver' },
+    });
+
+    res.json({ data: user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
 // PATCH /api/v1/users/push-token
 router.patch('/push-token', async (req, res) => {
   try {
@@ -54,6 +76,7 @@ router.patch('/push-token', async (req, res) => {
       return res.status(400).json({ error: 'firebaseUid and expoPushToken are required' });
     }
 
+    // Tolerate users who haven't been registered yet (e.g. Google Sign-In flow)
     const user = await prisma.user.findUnique({ where: { firebaseUid } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -66,6 +89,24 @@ router.patch('/push-token', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to save push token' });
+  }
+});
+
+// DELETE /api/v1/users/account
+// Permanently deletes the user and all their data (vehicles, sessions, reviews cascade).
+router.delete('/account', async (req, res) => {
+  try {
+    const { firebaseUid } = req.body;
+    if (!firebaseUid) return res.status(400).json({ error: 'firebaseUid is required' });
+
+    const user = await prisma.user.findUnique({ where: { firebaseUid } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    await prisma.user.delete({ where: { firebaseUid } });
+    res.json({ data: { success: true } });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 
